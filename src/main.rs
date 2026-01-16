@@ -9,7 +9,8 @@ use anyhow::Result;
 use clap::Parser;
 use tracing::info;
 
-use cli::Cli;
+use cli::{Cli, Commands};
+use colored::Colorize;
 use commands::run_command;
 
 #[tokio::main]
@@ -20,7 +21,7 @@ async fn main() -> Result<()> {
 
     info!("CraftCN v{} starting", env!("CARGO_PKG_VERSION"));
 
-    if matches!(cli.command, Commands::Init(_)) {
+    if matches!(cli.command, Commands::Init { .. }) {
         println!();
         println!("{} Welcome to CraftCN!", "═".repeat(40).cyan());
         println!(
@@ -53,7 +54,7 @@ async fn main() -> Result<()> {
             "│".cyan(),
             "craftcn --help".bold()
         );
-        println!("─".repeat(40).cyan());
+        println!("{}", "─".repeat(40).cyan());
         println!();
     }
 

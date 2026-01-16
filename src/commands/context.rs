@@ -1,5 +1,4 @@
-use anyhow::{Context, Result};
-use colored::Colorize;
+use anyhow::Result;
 use regex::Regex;
 
 use crate::registry::client::RegistryClient;
@@ -63,11 +62,6 @@ fn parse_java_context(content: &str, verbose: bool) -> String {
         r"(?:public|protected|private)?\s*(?:static\s+)?(?:final\s+)?(\w+(?:<[^>]+>)?)\s+(\w+)",
     )
     .unwrap();
-    let method_re = Regex::new(r"(?:public|protected|private)?\s*(?:static\s+)?(?:abstract\s+)?(\w+(?:<[^>]+>)?)\s+(\w+)\s*\(([^)]*)\)").unwrap();
-    let field_re = Regex::new(
-        r"(?:public|protected|private)?\s*(?:static\s+)?(?:final\s+)?(\w+(?:<[^>]+>)?)\s+(\w+)",
-    )
-    .unwrap();
 
     let lines: Vec<&str> = content.lines().collect();
     let mut in_class = false;
@@ -88,7 +82,12 @@ fn parse_java_context(content: &str, verbose: bool) -> String {
             in_class = true;
             indent = trimmed.len() - trimmed.trim_start().len();
 
-            context.push_str(&format!("// Class: {}\n", class_name, generics_suffix));
+            let generics_suffix = if !class_generics.is_empty() {
+                format!("<{}>", class_generics)
+            } else {
+                String::new()
+            };
+            context.push_str(&format!("// Class: {}{}\n", class_name, generics_suffix));
 
             if !class_generics.is_empty() {
                 context.push_str(&format!("//   Type Parameters: {}\n", class_generics));

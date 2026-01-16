@@ -20,7 +20,7 @@ CraftCN is a CLI tool and component registry designed to solve the UI fragmentat
 cargo install craftcn
 ```
 
-Or download the binary from the [releases](https://github.com/modpotato/cli/releases) page.
+Or download the binary from the [releases](https://github.com/modpotato/craftcn/releases) page.
 
 ## Quick Start
 
@@ -208,7 +208,7 @@ Contributions are welcome! Please read our contributing guidelines.
 
 ## Support
 
-- GitHub Issues: https://github.com/modpotato/cli/issues
+- GitHub Issues: https://github.com/modpotato/craftcn/issues
 
 ## Acknowledgments
 

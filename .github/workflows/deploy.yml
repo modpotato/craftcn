@@ -2,7 +2,7 @@ name: Deploy Registry to GitHub Pages
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: [ "develop" ]
     paths:
       - 'registry/**'
   workflow_dispatch:

@@ -4,7 +4,7 @@ use dialoguer::Input;
 use std::process::Command;
 
 pub async fn handle_contribute() -> Result<()> {
-    let contribution_url = "https://github.com/craftcn/cli/blob/main/CONTRIBUTING.md";
+    let contribution_url = "https://github.com/modpotato/craftcn/blob/develop/CONTRIBUTING.md";
 
     println!();
     println!("{}", "CraftCN Contribution Guide".bold().cyan());
@@ -16,7 +16,7 @@ pub async fn handle_contribute() -> Result<()> {
     );
     println!();
     println!(
-        "{}",
+        "{} {}",
         "Contribution Guide:".cyan(),
         contribution_url.yellow()
     );
@@ -28,7 +28,7 @@ pub async fn handle_contribute() -> Result<()> {
     println!("  4. Update registry/index.json with your component metadata");
     println!("  5. Test your changes locally");
     println!("  6. Commit and push: git push origin feature/my-component");
-    println!("  7. Submit a Pull Request to: main CraftCN repository");
+    println!("  7. Submit a Pull Request to the develop branch of the CraftCN repository");
     println!();
     println!("{}", "─".repeat(40).cyan());
     println!();
@@ -49,7 +49,6 @@ pub async fn handle_contribute() -> Result<()> {
         {
             if let Err(e) = Command::new("cmd")
                 .args(&["/C", "start", "", contribution_url])
-                .status()
                 .spawn()
             {
                 eprintln!("{} Failed to open browser: {}", "✗".red(), e);
@@ -68,11 +67,7 @@ pub async fn handle_contribute() -> Result<()> {
             || input.to_lowercase() == "y"
             || input.to_lowercase() == "yes"
         {
-            if let Err(e) = Command::new("xdg-open")
-                .args(&[contribution_url])
-                .status()
-                .spawn()
-            {
+            if let Err(e) = Command::new("xdg-open").args(&[contribution_url]).spawn() {
                 eprintln!("{} Failed to open browser: {}", "✗".red(), e);
             }
         }

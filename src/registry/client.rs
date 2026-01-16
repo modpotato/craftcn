@@ -36,7 +36,7 @@ impl RegistryClient {
 
     async fn fetch_registry_from_github() -> Result<String> {
         let client = Client::new();
-        let url = "https://raw.githubusercontent.com/modpotato/cli/main/registry/index.json";
+        let url = "https://raw.githubusercontent.com/modpotato/craftcn/develop/registry/index.json";
 
         let response = client
             .get(url)
@@ -58,7 +58,7 @@ impl RegistryClient {
 
     async fn fetch_themes_from_github() -> Result<String> {
         let client = Client::new();
-        let url = "https://raw.githubusercontent.com/modpotato/cli/main/registry/themes.json";
+        let url = "https://raw.githubusercontent.com/modpotato/craftcn/develop/registry/themes.json";
 
         let response = client
             .get(url)
@@ -155,7 +155,7 @@ impl RegistryClient {
 
         let client = Client::new();
         let url = format!(
-            "https://raw.githubusercontent.com/modpotato/cli/main/registry/components/{}/{}",
+            "https://raw.githubusercontent.com/modpotato/craftcn/develop/registry/components/{}/{}",
             component_name, file_path
         );
 

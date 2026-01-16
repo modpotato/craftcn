@@ -63,15 +63,3 @@ pub enum ThemeCommands {
 
     Apply { name: String },
 }
-
-#[derive(Subcommand)]
-pub enum Contribute {}
-
-#[derive(Subcommand)]
-pub enum ThemeCommands {
-    List,
-
-    Info { name: String },
-
-    Apply { name: String },
-}
