@@ -1,0 +1,194 @@
+package {{ package }};
+
+import net.kyori.adventure.text.Component;
+import org.bukkit.Bukkit;
+import org.bukkit.Material;
+import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.HandlerList;
+import org.bukkit.event.Listener;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.plugin.Plugin;
+
+/**
+ * Abstract base class for all menu components.
+ * Handles common inventory operations such as:
+ * - Click event cancellation
+ * - Drag prevention
+ * - Event cleanup on close
+ * 
+ * Extend this class to create custom menus.
+ */
+public abstract class BaseMenu implements Listener {
+    
+    protected final Plugin plugin;
+    protected final Player player;
+    protected final String title;
+    protected final int size;
+    protected Inventory inventory;
+    
+    private boolean cancelled;
+    
+    /**
+     * Creates a new menu for the specified player.
+     * 
+     * @param plugin The plugin instance
+     * @param player The player to show the menu to
+     * @param title The title of the menu (supports Adventure component)
+     * @param size The size of the inventory (must be multiple of 9)
+     */
+    public BaseMenu(Plugin plugin, Player player, String title, int size) {
+        this.plugin = plugin;
+        this.player = player;
+        this.title = title;
+        this.size = size;
+        this.cancelled = false;
+    }
+    
+    /**
+     * Opens the menu for the player.
+     * Registers the event listener and displays the inventory.
+     */
+    public void open() {
+        inventory = Bukkit.createInventory(null, size, Component.text(title));
+        build();
+        
+        Bukkit.getPluginManager().registerEvents(this, plugin);
+        player.openInventory(inventory);
+    }
+    
+    /**
+     * Closes the menu and cleans up event listeners.
+     */
+    public void close() {
+        if (!cancelled) {
+            cancelled = true;
+            HandlerList.unregisterAll(this);
+            if (player.getOpenInventory().getTopInventory() == inventory) {
+                player.closeInventory();
+            }
+        }
+    }
+    
+    /**
+     * Called when the menu is opened.
+     * Override this method to populate the inventory with items.
+     */
+    protected abstract void build();
+    
+    /**
+     * Called when a player clicks an item in the menu.
+     * 
+     * @param event The inventory click event
+     */
+    protected abstract void onClick(InventoryClickEvent event);
+    
+    /**
+     * Called when the menu is closed.
+     * 
+     * @param event The inventory close event
+     */
+    protected void onClose(InventoryCloseEvent event) {
+        // Override for custom close behavior
+    }
+    
+    @EventHandler
+    public void onInventoryClick(InventoryClickEvent event) {
+        if (event.getInventory() != inventory) {
+            return;
+        }
+        
+        if (cancelled) {
+            return;
+        }
+        
+        event.setCancelled(true);
+        onClick(event);
+    }
+    
+    @EventHandler
+    public void onInventoryDrag(InventoryDragEvent event) {
+        if (event.getInventory() != inventory) {
+            return;
+        }
+        
+        if (cancelled) {
+            return;
+        }
+        
+        event.setCancelled(true);
+    }
+    
+    @EventHandler
+    public void onInventoryClose(InventoryCloseEvent event) {
+        if (event.getInventory() != inventory) {
+            return;
+        }
+        
+        if (cancelled) {
+            return;
+        }
+        
+        cancelled = true;
+        HandlerList.unregisterAll(this);
+        onClose(event);
+    }
+    
+    /**
+     * Gets the player viewing this menu.
+     * 
+     * @return The player
+     */
+    public Player getPlayer() {
+        return player;
+    }
+    
+    /**
+     * Gets the inventory for this menu.
+     * 
+     * @return The inventory
+     */
+    public Inventory getInventory() {
+        return inventory;
+    }
+    
+    /**
+     * Creates a filler item using the theme's glass material.
+     * 
+     * @return A filler ItemStack
+     */
+    protected ItemStack createFiller() {
+        return new ItemStack(UITheme.FILLER_GLASS);
+    }
+    
+    /**
+     * Fills all empty slots with the theme's filler glass.
+     */
+    protected void fillEmptySlots() {
+        ItemStack filler = createFiller();
+        for (int i = 0; i < inventory.getSize(); i++) {
+            if (inventory.getItem(i) == null || inventory.getItem(i).getType() == Material.AIR) {
+                inventory.setItem(i, filler);
+            }
+        }
+    }
+    
+    /**
+     * Fills a range of slots with the theme's filler glass.
+     * 
+     * @param start The starting slot index (inclusive)
+     * @param end The ending slot index (exclusive)
+     */
+    protected void fillRange(int start, int end) {
+        ItemStack filler = createFiller();
+        for (int i = start; i < end; i++) {
+            if (i >= 0 && i < inventory.getSize()) {
+                inventory.setItem(i, filler);
+            }
+        }
+    }
+}

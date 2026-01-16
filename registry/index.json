@@ -1,0 +1,207 @@
+{
+  "version": "1.0.0",
+  "components": [
+    {
+      "name": "base-menu",
+      "category": "A",
+      "description": "Abstract base class for all inventory menus with click handling and cleanup",
+      "dependencies": [],
+      "files": [
+        { "path": "ui/core/BaseMenu.java" }
+      ]
+    },
+    {
+      "name": "paginated-menu",
+      "category": "A",
+      "description": "Paginated inventory menu with automatic page calculation and navigation",
+      "dependencies": ["base-menu", "item-builder"],
+      "files": [
+        { "path": "ui/menus/PaginatedMenu.java" }
+      ]
+    },
+    {
+      "name": "confirmation-menu",
+      "category": "A",
+      "description": "Simple confirmation dialog with confirm/deny callbacks",
+      "dependencies": ["base-menu"],
+      "files": [
+        { "path": "ui/menus/ConfirmationMenu.java" }
+      ]
+    },
+    {
+      "name": "form-menu",
+      "category": "A",
+      "description": "Wrapper for Anvil and Sign GUIs to get string input from players",
+      "dependencies": [],
+      "files": [
+        { "path": "ui/forms/FormMenu.java" }
+      ]
+    },
+    {
+      "name": "selection-menu",
+      "category": "A",
+      "description": "Scrolling selection menu with multi-select toggle support",
+      "dependencies": ["base-menu", "item-builder"],
+      "files": [
+        { "path": "ui/menus/SelectionMenu.java" }
+      ]
+    },
+    {
+      "name": "chat-prompt",
+      "category": "B",
+      "description": "Captures the next chat message from a player with timeout support",
+      "dependencies": [],
+      "files": [
+        { "path": "ui/chat/ChatPrompt.java" }
+      ]
+    },
+    {
+      "name": "interactive-message",
+      "category": "B",
+      "description": "Builder pattern for complex hover/click events in chat messages",
+      "dependencies": [],
+      "files": [
+        { "path": "ui/chat/InteractiveMessage.java" }
+      ]
+    },
+    {
+      "name": "scoreboard-sidebar",
+      "category": "C",
+      "description": "Flicker-free packet-based scoreboard with line support",
+      "dependencies": [],
+      "files": [
+        { "path": "ui/hud/ScoreboardSidebar.java" }
+      ]
+    },
+    {
+      "name": "bossbar-timer",
+      "category": "C",
+      "description": "BossBar wrapper with countdown timer functionality",
+      "dependencies": [],
+      "files": [
+        { "path": "ui/hud/BossBarTimer.java" }
+      ]
+    },
+    {
+      "name": "toast-notification",
+      "category": "C",
+      "description": "Achievement-style toast notifications with custom icons",
+      "dependencies": [],
+      "files": [
+        { "path": "ui/hud/ToastNotification.java" }
+      ]
+    },
+    {
+      "name": "item-builder",
+      "category": "D",
+      "description": "Fluent API for creating ItemStacks with name, lore, and enchantments",
+      "dependencies": [],
+      "files": [
+        { "path": "ui/util/ItemBuilder.java" }
+      ]
+    },
+    {
+      "name": "head-util",
+      "category": "D",
+      "description": "Utility for fetching player heads with Base64 texture caching",
+      "dependencies": [],
+      "files": [
+        { "path": "ui/util/HeadUtil.java" }
+      ]
+    }
+  ],
+  "categories": {
+    "A": [
+      {
+        "name": "base-menu",
+        "category": "A",
+        "description": "Abstract base class for all inventory menus with click handling and cleanup",
+        "dependencies": [],
+        "files": []
+      },
+      {
+        "name": "paginated-menu",
+        "category": "A",
+        "description": "Paginated inventory menu with automatic page calculation and navigation",
+        "dependencies": ["base-menu", "item-builder"],
+        "files": []
+      },
+      {
+        "name": "confirmation-menu",
+        "category": "A",
+        "description": "Simple confirmation dialog with confirm/deny callbacks",
+        "dependencies": ["base-menu"],
+        "files": []
+      },
+      {
+        "name": "form-menu",
+        "category": "A",
+        "description": "Wrapper for Anvil and Sign GUIs to get string input from players",
+        "dependencies": [],
+        "files": []
+      },
+      {
+        "name": "selection-menu",
+        "category": "A",
+        "description": "Scrolling selection menu with multi-select toggle support",
+        "dependencies": ["base-menu", "item-builder"],
+        "files": []
+      }
+    ],
+    "B": [
+      {
+        "name": "chat-prompt",
+        "category": "B",
+        "description": "Captures the next chat message from a player with timeout support",
+        "dependencies": [],
+        "files": []
+      },
+      {
+        "name": "interactive-message",
+        "category": "B",
+        "description": "Builder pattern for complex hover/click events in chat messages",
+        "dependencies": [],
+        "files": []
+      }
+    ],
+    "C": [
+      {
+        "name": "scoreboard-sidebar",
+        "category": "C",
+        "description": "Flicker-free packet-based scoreboard with line support",
+        "dependencies": [],
+        "files": []
+      },
+      {
+        "name": "bossbar-timer",
+        "category": "C",
+        "description": "BossBar wrapper with countdown timer functionality",
+        "dependencies": [],
+        "files": []
+      },
+      {
+        "name": "toast-notification",
+        "category": "C",
+        "description": "Achievement-style toast notifications with custom icons",
+        "dependencies": [],
+        "files": []
+      }
+    ],
+    "D": [
+      {
+        "name": "item-builder",
+        "category": "D",
+        "description": "Fluent API for creating ItemStacks with name, lore, and enchantments",
+        "dependencies": [],
+        "files": []
+      },
+      {
+        "name": "head-util",
+        "category": "D",
+        "description": "Utility for fetching player heads with Base64 texture caching",
+        "dependencies": [],
+        "files": []
+      }
+    ]
+  }
+}

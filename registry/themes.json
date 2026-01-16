@@ -1,0 +1,128 @@
+[
+  {
+    "name": "default",
+    "description": "Classic Minecraft styling with vibrant colors and clear contrast",
+    "version": "1.0.0",
+    "author": "GLM 4.7",
+    "palette": {
+      "primary": "#FFD700",
+      "secondary": "#A0A0A0",
+      "accent": "#00CED1",
+      "destructive": "#FF4444",
+      "muted": "#808080",
+      "background": "#2C2C2C",
+      "foreground": "#FFFFFF"
+    },
+    "assets": {
+      "filler_glass": "GRAY_STAINED_GLASS_PANE",
+      "back_button": "ARROW",
+      "next_button": "ARROW",
+      "error_icon": "BARRIER",
+      "success_icon": "EMERALD"
+    },
+    "styles": {
+      "title": "bold + gold",
+      "subtitle": "gray",
+      "accent": "italic + cyan",
+      "error": "bold + red",
+      "success": "bold + green"
+    },
+    "sounds": {
+      "success": "ENTITY_PLAYER_LEVELUP",
+      "error": "ENTITY_VILLAGER_NO",
+      "click": "UI_BUTTON_CLICK",
+      "open": "BLOCK_CHEST_OPEN",
+      "close": "BLOCK_CHEST_CLOSE"
+    },
+    "preview": [
+      "Primary: Gold (#FFD700)",
+      "Secondary: Gray (#A0A0A0)",
+      "Accent: DarkTurquoise (#00CED1)",
+      "Destructive: Red (#FF4444)"
+    ]
+  },
+  {
+    "name": "dark",
+    "description": "Modern dark theme with deep blacks and subtle accents",
+    "version": "1.0.0",
+    "author": "GLM 4.7",
+    "palette": {
+      "primary": "#1a1a1a",
+      "secondary": "#2d2d2d",
+      "accent": "#9370DB",
+      "destructive": "#DC143C",
+      "muted": "#4a4a4a",
+      "background": "#0f0f0f",
+      "foreground": "#e0e0e0"
+    },
+    "assets": {
+      "filler_glass": "BLACK_STAINED_GLASS_PANE",
+      "back_button": "IRON_INGOT",
+      "next_button": "IRON_INGOT",
+      "error_icon": "REDSTONE_BLOCK",
+      "success_icon": "LAPIS_LAZULI"
+    },
+    "styles": {
+      "title": "bold + dark_gray",
+      "subtitle": "dark_gray",
+      "accent": "italic + purple",
+      "error": "bold + dark_red",
+      "success": "bold + dark_purple"
+    },
+    "sounds": {
+      "success": "BLOCK_NOTE_BLOCK_PLING",
+      "error": "BLOCK_ANVIL_PLACE",
+      "click": "BLOCK_STONE_BUTTON_CLICK_ON",
+      "open": "BLOCK_IRON_DOOR_OPEN",
+      "close": "BLOCK_IRON_DOOR_CLOSE"
+    },
+    "preview": [
+      "Primary: Dark Gray (#1a1a1a)",
+      "Secondary: Gray (#2d2d2d)",
+      "Accent: Purple (#9370DB)",
+      "Destructive: Crimson (#DC143C)"
+    ]
+  },
+  {
+    "name": "ocean",
+    "description": "Calm oceanic theme with blues and teals",
+    "version": "1.0.0",
+    "author": "GLM 4.7",
+    "palette": {
+      "primary": "#006994",
+      "secondary": "#40E0D0",
+      "accent": "#20B2AA",
+      "destructive": "#FF6347",
+      "muted": "#4682B4",
+      "background": "#001133",
+      "foreground": "#E0FFFF"
+    },
+    "assets": {
+      "filler_glass": "LIGHT_BLUE_STAINED_GLASS_PANE",
+      "back_button": "PRISMARINE_SHARD",
+      "next_button": "PRISMARINE_SHARD",
+      "error_icon": "MAGMA_CREAM",
+      "success_icon": "PRISMARINE_CRYSTALS"
+    },
+    "styles": {
+      "title": "bold + dark_blue",
+      "subtitle": "aqua",
+      "accent": "italic + teal",
+      "error": "bold + tomato",
+      "success": "bold + sea_green"
+    },
+    "sounds": {
+      "success": "ENTITY_PLAYER_SPLASH",
+      "error": "ENTITY_DROWNED_HURT",
+      "click": "BLOCK_BUBBLE_COLUMN_UPWARDS_AMBIENT",
+      "open": "BLOCK_SAND_BREAK",
+      "close": "BLOCK_WET_GRASS_STEP"
+    },
+    "preview": [
+      "Primary: Navy (#006994)",
+      "Secondary: Turquoise (#40E0D0)",
+      "Accent: LightSeaGreen (#20B2AA)",
+      "Destructive: Tomato (#FF6347)"
+    ]
+  }
+]
