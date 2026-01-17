@@ -1,0 +1,224 @@
+# CraftCN - LLM Context Guide
+
+> A "shadcn/ui" for Minecraft Plugins - CLI tool for scaffolding UI primitives for PaperMC plugins.
+
+## What is CraftCN?
+
+CraftCN is a CLI tool and component registry that scaffolds source-available, headless UI primitives directly into Minecraft plugin projects. Instead of shading large libraries that cause version conflicts, developers copy editable Java source files into their project.
+
+**Key Concept**: Components are NOT dependencies - they are source files copied into the user's project under their package namespace.
+
+## Technology Stack
+
+- **Target**: PaperMC plugins (Bukkit/Spigot compatible with Paper-specific features)
+- **UI Library**: Adventure API (Kyori) for text components, colors, events
+- **Java Version**: 17+ (uses records, pattern matching, lambdas)
+- **No NMS**: Pure Paper API unless absolutely necessary
+
+## Project Structure After Init
+
+```
+src/main/java/com/example/plugin/
+├── ui/
+│   ├── core/
+│   │   ├── UITheme.java      # Generated theme with colors, sounds, materials
+│   │   └── BaseMenu.java     # Abstract base for all inventory menus
+│   ├── menus/
+│   │   ├── PaginatedMenu.java
+│   │   ├── ConfirmationMenu.java
+│   │   └── SelectionMenu.java
+│   ├── chat/
+│   │   ├── ChatPrompt.java
+│   │   └── InteractiveMessage.java
+│   ├── hud/
+│   │   ├── ScoreboardSidebar.java
+│   │   ├── BossBarTimer.java
+│   │   └── ToastNotification.java
+│   ├── forms/
+│   │   └── FormMenu.java
+│   └── util/
+│       ├── ItemBuilder.java
+│       └── HeadUtil.java
+└── craftcn.json              # Configuration file
+```
+
+## Available Components
+
+### Category A: Inventory GUIs
+
+1. **base-menu** - Abstract parent class with click handling, cleanup, filler glass
+2. **paginated-menu** - Generic pagination with navigation buttons
+3. **confirmation-menu** - Modal dialog with confirm/deny Runnable callbacks
+4. **form-menu** - Inventory + chat input hybrid for string collection
+5. **selection-menu** - Multi-select list with toggle and glow feedback
+
+### Category B: Chat Widgets
+
+1. **chat-prompt** - Captures next chat message with timeout, CompletableFuture support
+2. **interactive-message** - Builder for hover/click events using Adventure API
+
+### Category C: HUD & Visuals
+
+1. **scoreboard-sidebar** - Flicker-free scoreboard using team prefixes
+2. **bossbar-timer** - Countdown with Adventure BossBar, pause/resume
+3. **toast-notification** - Title-based notifications with static helpers
+
+### Category D: Utilities
+
+1. **item-builder** - Fluent ItemStack creation with name, lore, enchants, glow
+2. **head-util** - Player head fetching with Base64 texture caching
+
+## Component Dependencies
+
+When generating code, respect these dependencies:
+- `paginated-menu` requires: `base-menu`, `item-builder`
+- `confirmation-menu` requires: `base-menu`
+- `selection-menu` requires: `base-menu`, `item-builder`
+- All other components are standalone
+
+## UITheme System
+
+All components reference `UITheme` for consistent styling:
+
+```java
+// Colors (TextColor from Adventure)
+UITheme.PRIMARY      // Title text
+UITheme.SECONDARY    // Subtitle text
+UITheme.ACCENT       // Highlights
+UITheme.DESTRUCTIVE  // Errors, warnings
+UITheme.MUTED        // Disabled text
+
+// Materials
+UITheme.FILLER_GLASS  // Gray glass pane for empty slots
+UITheme.BACK_BUTTON   // Arrow or custom material
+UITheme.NEXT_BUTTON   // Arrow or custom material
+
+// Sounds
+UITheme.SUCCESS       // Positive feedback
+UITheme.ERROR         // Negative feedback
+UITheme.CLICK         // Button interaction
+UITheme.OPEN          // Menu open
+UITheme.CLOSE         // Menu close
+
+// Styles (UITheme.Style class)
+UITheme.TITLE_STYLE.apply("My Title")  // Returns styled Component
+```
+
+## Code Patterns
+
+### Creating a Menu
+```java
+public class ShopMenu extends PaginatedMenu<ShopItem> {
+    public ShopMenu(Plugin plugin, Player player) {
+        super(plugin, player, "Shop");
+        setSource(getShopItems());
+        setRenderer(item -> ItemBuilder.from(item.material())
+            .name(item.name())
+            .addLore("Price: " + item.price())
+            .build());
+    }
+    
+    @Override
+    protected void onItemClick(ShopItem item, int slot) {
+        // Handle purchase
+    }
+}
+```
+
+### Using ItemBuilder
+```java
+ItemStack item = ItemBuilder.from(Material.DIAMOND_SWORD)
+    .name("Legendary Sword")
+    .addLore("A powerful weapon")
+    .addLore("")
+    .addLore("Click to equip")
+    .enchant(Enchantment.SHARPNESS, 5)
+    .glow()  // Adds hidden enchant glow
+    .build();
+```
+
+### Using ChatPrompt
+```java
+new ChatPrompt(plugin, player, "Enter your clan name:", name -> {
+    player.sendMessage("Clan created: " + name);
+}).start();
+
+// Or with CompletableFuture
+ChatPrompt prompt = new ChatPrompt(plugin, player, "Enter amount:");
+prompt.start();
+prompt.getResponse().thenAccept(amount -> {
+    // Handle response
+});
+```
+
+### Using BossBarTimer
+```java
+BossBarTimer.countdown(plugin, "Game starts in...", 30)
+    .setColor(BossBar.Color.GREEN)
+    .setOnComplete(timer -> startGame())
+    .addPlayer(player)
+    .start();
+```
+
+### Using InteractiveMessage
+```java
+InteractiveMessage.from("[Accept]")
+    .color(NamedTextColor.GREEN)
+    .bold()
+    .hover("Click to accept the request")
+    .clickCommand("/party accept " + sender.getName())
+    .send(player);
+```
+
+### Using ScoreboardSidebar
+```java
+ScoreboardSidebar sidebar = new ScoreboardSidebar(player, "§6§lMY SERVER");
+sidebar.addLine("§7Online: §f" + Bukkit.getOnlinePlayers().size());
+sidebar.addLine("§7Balance: §a$1000");
+sidebar.addLine("");
+sidebar.addLine("§eplay.example.com");
+sidebar.show();
+```
+
+## Important Implementation Notes
+
+1. **Package Replacement**: All `com.craftcn` packages must be replaced with user's package (e.g., `com.example.plugin`)
+
+2. **Event Cleanup**: All menus automatically unregister listeners on close via `HandlerList.unregisterAll(this)`
+
+3. **Sound Playing**: Use `player.playSound(player.getLocation(), UITheme.CLICK, 1.0f, 1.0f)`
+
+4. **Adventure Components**: Use `Component.text()` not legacy `ChatColor`:
+   ```java
+   // Correct
+   player.sendMessage(Component.text("Hello", NamedTextColor.GREEN));
+   // Wrong
+   player.sendMessage(ChatColor.GREEN + "Hello");
+   ```
+
+5. **Async Safety**: ChatPrompt uses async events. Run Bukkit API calls on main thread:
+   ```java
+   Bukkit.getScheduler().runTask(plugin, () -> {
+       // Bukkit API here
+   });
+   ```
+
+## CLI Commands Reference
+
+```bash
+craftcn init                    # Initialize project with theme
+craftcn add <component>         # Add component (resolves dependencies)
+craftcn list                    # List available components
+craftcn context <component>     # Get LLM-optimized API summary
+craftcn theme apply <theme>     # Switch theme (default, dark, ocean)
+```
+
+## When Generating CraftCN Code
+
+1. Always import from the user's package, not `com.craftcn`
+2. Extend `BaseMenu` for custom menus
+3. Use `ItemBuilder.from()` (static factory, not constructor)
+4. Pass `Plugin` instance to components that need scheduling
+5. Components are self-contained - copy/paste is the distribution model
+6. Use Adventure API for all text (`Component`, `TextColor`, etc.)
+7. Reference `UITheme` constants for colors, sounds, and materials
