@@ -1,5 +1,6 @@
 package com.craftcn.ui.forms;
 
+import com.craftcn.ui.core.UITheme;
 import com.craftcn.ui.util.ItemBuilder;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -42,19 +43,19 @@ public class FormMenu implements Listener {
     public void open() {
         inventory = Bukkit.createInventory(null, 45, Component.text(title));
         
-        ItemStack promptItem = new ItemBuilder(Material.PAPER)
+        ItemStack promptItem = ItemBuilder.from(Material.PAPER)
             .name("Enter your response:")
-            .lore(prompt)
+            .addLore(prompt)
             .build();
         
-        ItemStack submitItem = new ItemBuilder(Material.GREEN_WOOL)
+        ItemStack submitItem = ItemBuilder.from(Material.GREEN_WOOL)
             .name("Submit")
-            .lore("Click to submit your input")
+            .addLore("Click to submit your input")
             .build();
         
-        ItemStack cancelItem = new ItemBuilder(Material.RED_WOOL)
+        ItemStack cancelItem = ItemBuilder.from(Material.RED_WOOL)
             .name("Cancel")
-            .lore("Click to cancel")
+            .addLore("Click to cancel")
             .build();
         
         inventory.setItem(13, promptItem);
@@ -63,7 +64,7 @@ public class FormMenu implements Listener {
         
         for (int i = 0; i < 45; i++) {
             if (inventory.getItem(i) == null || inventory.getItem(i).getType() == Material.AIR) {
-                inventory.setItem(i, new ItemBuilder(Material.GRAY_STAINED_GLASS_PANE).name(" ").build());
+                inventory.setItem(i, ItemBuilder.from(UITheme.FILLER_GLASS).name(" ").build());
             }
         }
         

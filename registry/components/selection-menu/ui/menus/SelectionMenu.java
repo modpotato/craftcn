@@ -1,9 +1,13 @@
 package com.craftcn.ui.menus;
 
 import com.craftcn.ui.core.BaseMenu;
+import com.craftcn.ui.core.UITheme;
 import com.craftcn.ui.util.ItemBuilder;
 import org.bukkit.entity.Player;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.Material;
+import org.bukkit.plugin.Plugin;
 
 import java.util.ArrayList;
 import java.util.HashSet;

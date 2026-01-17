@@ -70,13 +70,8 @@ public class InteractiveMessage {
         return new InteractiveMessage(message.clickEvent(ClickEvent.openUrl(url)));
     }
     
-    public InteractiveMessage clickAction(Runnable action) {
-        Component clickComponent = message.clickEvent(ClickEvent.callback("craftcn_action", (audience) -> {
-            if (audience instanceof Player) {
-                action.run();
-            }
-        }));
-        return new InteractiveMessage(clickComponent);
+    public InteractiveMessage clickCopy(String text) {
+        return new InteractiveMessage(message.clickEvent(ClickEvent.copyToClipboard(text)));
     }
     
     public Component build() {

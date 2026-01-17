@@ -113,10 +113,8 @@ public class HeadUtil {
                 SkullMeta meta = (SkullMeta) head.getItemMeta();
                 
                 if (meta != null) {
+                    // Create profile with UUID - texture is fetched automatically by the client
                     PlayerProfile profile = Bukkit.createPlayerProfile(uuid, playerName);
-                    PlayerTextures textures = profile.getTextures();
-                    textures.updateSkin();
-                    profile.setTextures(textures);
                     meta.setOwnerProfile(profile);
                 }
                 

@@ -1,13 +1,15 @@
 package com.craftcn.ui.chat;
 
+import com.craftcn.ui.core.UITheme;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
-import org.bukkit.event.player.AsyncPlayerChatEvent;
+import io.papermc.paper.event.player.AsyncChatEvent;
 import org.bukkit.plugin.Plugin;
 
 import java.util.concurrent.CompletableFuture;
@@ -68,15 +70,17 @@ public class ChatPrompt implements Listener {
         return future;
     }
     
-    @EventHandler
-    public void onPlayerChat(AsyncPlayerChatEvent event) {
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onPlayerChat(AsyncChatEvent event) {
         if (!active || event.getPlayer() != player) {
             return;
         }
         
         event.setCancelled(true);
         
-        String message = event.getMessage();
+        // Extract plain text from the message component
+        String message = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
+            .plainText().serialize(event.message());
         
         if (message.equalsIgnoreCase("cancel")) {
             player.sendMessage(Component.text("Prompt cancelled", NamedTextColor.RED));

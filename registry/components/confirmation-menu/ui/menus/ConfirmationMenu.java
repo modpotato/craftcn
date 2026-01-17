@@ -1,8 +1,13 @@
 package com.craftcn.ui.menus;
 
 import com.craftcn.ui.core.BaseMenu;
+import com.craftcn.ui.core.UITheme;
+import com.craftcn.ui.util.ItemBuilder;
 import org.bukkit.entity.Player;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.Material;
+import org.bukkit.plugin.Plugin;
 
 import java.util.function.Runnable;
 
@@ -29,20 +34,20 @@ public class ConfirmationMenu extends BaseMenu {
     protected void build() {
         inventory.clear();
         
-        ItemStack messageItem = new ItemBuilder(Material.PAPER)
+        ItemStack messageItem = ItemBuilder.from(Material.PAPER)
             .name("Confirmation")
-            .lore(message)
+            .addLore(message)
             .build();
         
-        ItemStack confirmButton = new ItemBuilder(Material.GREEN_WOOL)
+        ItemStack confirmButton = ItemBuilder.from(Material.GREEN_WOOL)
             .name("Confirm")
-            .lore("Click to confirm")
+            .addLore("Click to confirm")
             .glow()
             .build();
         
-        ItemStack denyButton = new ItemBuilder(Material.RED_WOOL)
+        ItemStack denyButton = ItemBuilder.from(Material.RED_WOOL)
             .name("Cancel")
-            .lore("Click to cancel")
+            .addLore("Click to cancel")
             .build();
         
         inventory.setItem(13, messageItem);

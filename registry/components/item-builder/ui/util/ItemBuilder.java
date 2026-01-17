@@ -94,7 +94,7 @@ public class ItemBuilder {
     
     public ItemBuilder glow() {
         meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
-        meta.addEnchant(Enchantment.DURABILITY, 1, true);
+        meta.addEnchant(Enchantment.UNBREAKING, 1, true);
         return this;
     }
     
@@ -136,7 +136,7 @@ public class ItemBuilder {
             ItemFlag.HIDE_ATTRIBUTES,
             ItemFlag.HIDE_DESTROYS,
             ItemFlag.HIDE_PLACED_ON,
-            ItemFlag.HIDE_POTION_EFFECTS
+            ItemFlag.HIDE_ADDITIONAL_TOOLTIP
         );
     }
     

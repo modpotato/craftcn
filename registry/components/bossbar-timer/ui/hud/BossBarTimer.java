@@ -4,6 +4,7 @@ import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
+import org.bukkit.plugin.Plugin;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -12,9 +13,10 @@ import java.util.function.Consumer;
 
 public class BossBarTimer {
     
+    private final Plugin plugin;
     private final BossBar bossBar;
     private final List<Player> viewers;
-    private int taskId;
+    private int taskId = -1;
     private long duration;
     private TimeUnit unit;
     private long remaining;
@@ -22,29 +24,30 @@ public class BossBarTimer {
     private Consumer<BossBarTimer> onTick;
     private boolean running;
     
-    public BossBarTimer(Component title, float progress, BossBar.Color color, BossBar.Overlay overlay) {
+    public BossBarTimer(Plugin plugin, Component title, float progress, BossBar.Color color, BossBar.Overlay overlay) {
+        this.plugin = plugin;
         this.bossBar = BossBar.bossBar(title, progress, color, overlay);
         this.viewers = new ArrayList<>();
         this.running = false;
     }
     
-    public static BossBarTimer create(String title) {
-        return create(Component.text(title));
+    public static BossBarTimer create(Plugin plugin, String title) {
+        return create(plugin, Component.text(title));
     }
     
-    public static BossBarTimer create(Component title) {
-        return new BossBarTimer(title, 1.0f, BossBar.Color.BLUE, BossBar.Overlay.PROGRESS);
+    public static BossBarTimer create(Plugin plugin, Component title) {
+        return new BossBarTimer(plugin, title, 1.0f, BossBar.Color.BLUE, BossBar.Overlay.PROGRESS);
     }
     
-    public static BossBarTimer countdown(Component title, int seconds) {
-        BossBarTimer timer = new BossBarTimer(title, 1.0f, BossBar.Color.RED, BossBar.Overlay.NOTCHED_10);
+    public static BossBarTimer countdown(Plugin plugin, Component title, int seconds) {
+        BossBarTimer timer = new BossBarTimer(plugin, title, 1.0f, BossBar.Color.RED, BossBar.Overlay.NOTCHED_10);
         timer.duration = seconds;
         timer.unit = TimeUnit.SECONDS;
         return timer;
     }
     
-    public static BossBarTimer countdown(String title, int seconds) {
-        return countdown(Component.text(title), seconds);
+    public static BossBarTimer countdown(Plugin plugin, String title, int seconds) {
+        return countdown(plugin, Component.text(title), seconds);
     }
     
     public BossBarTimer setTitle(String title) {
@@ -119,22 +122,21 @@ public class BossBarTimer {
         
         running = true;
         remaining = unit.toSeconds(duration);
-        long tickInterval = Math.max(1, remaining / 100);
         
-        taskId = Bukkit.getScheduler().runTaskTimerAsynchronously(null, () -> {
+        taskId = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             if (remaining <= 0) {
                 complete();
                 return;
             }
             
-            remaining -= tickInterval;
+            remaining--;
             float progress = (float) remaining / unit.toSeconds(duration);
             bossBar.progress(Math.max(0, Math.min(1, progress)));
             
             if (onTick != null) {
                 onTick.accept(this);
             }
-        }, 0L, tickInterval * 20L).getTaskId();
+        }, 0L, 20L).getTaskId();
     }
     
     public void pause() {

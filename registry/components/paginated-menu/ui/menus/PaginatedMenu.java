@@ -1,18 +1,22 @@
 package com.craftcn.ui.menus;
 
 import com.craftcn.ui.core.BaseMenu;
+import com.craftcn.ui.core.UITheme;
 import com.craftcn.ui.util.ItemBuilder;
+import org.bukkit.Material;
 import org.bukkit.entity.Player;
+import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.plugin.Plugin;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.BiConsumer;
+import java.util.function.Function;
 
 public class PaginatedMenu<T> extends BaseMenu {
     
     private List<T> items;
-    private BiConsumer<T, Integer> renderer;
+    private Function<T, ItemStack> renderer;
     private int currentPage = 0;
     private int itemsPerPage = 28;
     private int startIndex = 9;
@@ -28,7 +32,7 @@ public class PaginatedMenu<T> extends BaseMenu {
         this.currentPage = 0;
     }
     
-    public void setRenderer(BiConsumer<T, Integer> renderer) {
+    public void setRenderer(Function<T, ItemStack> renderer) {
         this.renderer = renderer;
     }
     
@@ -69,14 +73,13 @@ public class PaginatedMenu<T> extends BaseMenu {
     }
     
     protected ItemStack render(T item, int slot) {
-        ItemStack.Builder builder = ItemBuilder.from(Material.PAPER)
-            .name(item.toString());
-        
         if (renderer != null) {
-            renderer.accept(item, slot);
+            return renderer.apply(item);
         }
-        
-        return builder.build();
+        // Default rendering if no custom renderer
+        return ItemBuilder.from(Material.PAPER)
+            .name(item.toString())
+            .build();
     }
     
     private void renderPagination() {

@@ -62,19 +62,32 @@ public class ScoreboardSidebar {
     }
     
     private void updateLines() {
+        // Clear existing teams
         for (Team team : teams) {
             team.unregister();
         }
         teams.clear();
         
-        for (int i = 0; i < lines.size(); i++) {
+        // Reset scoreboard entries
+        for (String entry : scoreboard.getEntries()) {
+            scoreboard.resetScores(entry);
+        }
+        
+        // Color codes for unique entries (max 16 lines)
+        String[] colorCodes = {
+            "§0", "§1", "§2", "§3", "§4", "§5", "§6", "§7",
+            "§8", "§9", "§a", "§b", "§c", "§d", "§e", "§f"
+        };
+        
+        for (int i = 0; i < lines.size() && i < 16; i++) {
             String line = lines.get(lines.size() - 1 - i);
             String teamName = "line_" + i;
             
             Team team = scoreboard.registerNewTeam(teamName);
             teams.add(team);
             
-            String entry = String.valueOf(net.kyori.adventure.text.format.NamedTextColor.values()[i % 16]);
+            // Use color code as unique entry
+            String entry = colorCodes[i];
             team.addEntry(entry);
             team.prefix(Component.text(line));
             

@@ -1,5 +1,6 @@
 package {{ package }};
 
+import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
@@ -96,16 +97,17 @@ public class UITheme {
             return decoration;
         }
         
-        public net.kyori.adventure.text.format.TextFormat toFormat() {
+        public net.kyori.adventure.text.format.Style toStyle() {
+            net.kyori.adventure.text.format.Style.Builder builder = 
+                net.kyori.adventure.text.format.Style.style().color(color);
             if (decoration != null) {
-                return net.kyori.adventure.text.format.TextFormat.builder()
-                    .color(color)
-                    .decoration(decoration, TextDecoration.State.TRUE)
-                    .build();
+                builder.decorate(decoration);
             }
-            return net.kyori.adventure.text.format.TextFormat.builder()
-                .color(color)
-                .build();
+            return builder.build();
+        }
+        
+        public Component apply(String text) {
+            return Component.text(text, toStyle());
         }
     }
 }
