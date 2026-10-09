@@ -1,99 +1,107 @@
 use anyhow::{Context, Result};
 use colored::Colorize;
-use minijinja::Environment;
+use minijinja::{context, Environment};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::registry::models::Theme;
+use crate::utils::project::java_source_root;
 
-pub struct JavaGenerator {
-    project_root: PathBuf,
-    package: String,
-    theme_name: String,
-    env: Environment<'static>,
+const UITHEME_TEMPLATE: &str = include_str!("../../templates/UITheme.java.j2");
+
+/// Renders `UITheme.java` for a theme. The output lives in `<package>.ui`.
+pub fn render_theme(theme: &Theme, package: &str) -> Result<String> {
+    let mut env = Environment::new();
+    env.add_template("UITheme.java", UITHEME_TEMPLATE)
+        .context("UITheme.java template is invalid")?;
+
+    let template = env.get_template("UITheme.java")?;
+    template
+        .render(context! {
+            package => format!("{package}.ui"),
+            theme => theme,
+        })
+        .context("Failed to render UITheme.java")
 }
 
-impl JavaGenerator {
-    pub fn new(project_root: PathBuf, package: String, theme_name: String) -> Self {
-        let mut env = Environment::new();
-        env.add_function("to_uppercase", |s: String| s.to_uppercase());
-        env.add_function("to_lowercase", |s: String| s.to_lowercase());
+/// Writes `UITheme.java` into the project and returns its path.
+pub fn write_theme(project_root: &Path, package: &str, theme: &Theme) -> Result<PathBuf> {
+    let rendered = render_theme(theme, package)?;
+    let output_path = java_source_root(project_root, package)
+        .join("ui")
+        .join("UITheme.java");
 
-        Self {
-            project_root,
-            package,
-            theme_name,
-            env,
+    if let Some(parent) = output_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    fs::write(&output_path, rendered)
+        .with_context(|| format!("failed to write {}", output_path.display()))?;
+
+    println!(
+        "{} {}",
+        "✓".green(),
+        format!("Created {}", output_path.display()).dimmed()
+    );
+
+    Ok(output_path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::BTreeMap;
+
+    fn sample_theme() -> Theme {
+        let mut sounds = BTreeMap::new();
+        sounds.insert("success".to_string(), "ENTITY_PLAYER_LEVELUP".to_string());
+        sounds.insert("click".to_string(), "UI_BUTTON_CLICK".to_string());
+
+        Theme {
+            name: "test".to_string(),
+            description: "test theme".to_string(),
+            version: "1.0.0".to_string(),
+            author: "tests".to_string(),
+            palette: Default::default(),
+            assets: crate::registry::models::Assets {
+                filler_glass: "GRAY_STAINED_GLASS_PANE".to_string(),
+                back_button: "ARROW".to_string(),
+                next_button: "ARROW".to_string(),
+                error_icon: "BARRIER".to_string(),
+                success_icon: "EMERALD".to_string(),
+            },
+            styles: BTreeMap::new(),
+            sounds,
+            preview: None,
         }
     }
 
-    fn get_package_path(&self, package: &str) -> PathBuf {
-        let package_path = package.replace('.', "/");
-        self.project_root
-            .join("src")
-            .join("main")
-            .join("java")
-            .join(package_path)
-    }
+    #[test]
+    fn renders_sound_constants_in_the_ui_package() {
+        let rendered = render_theme(&sample_theme(), "com.example.plugin").unwrap();
 
-    pub async fn generate_theme(&self, theme: &Theme) -> Result<()> {
-        let template = include_str!("../../templates/UITheme.java.j2");
-        let ui_package = format!("{}.ui", self.package);
-        let output_path = self.get_package_path(&ui_package).join("UITheme.java");
-
-        let ctx = minijinja::context! {
-            package => ui_package,
-            theme => theme,
-        };
-
-        let rendered = self
-            .env
-            .render_str(template, ctx)
-            .context("Failed to render UITheme.java")?;
-
-        if let Some(parent) = output_path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-
-        fs::write(&output_path, rendered)?;
-
-        println!(
-            "{} {}",
-            "✓".green(),
-            format!("Created {}", output_path.display()).dimmed()
+        assert!(rendered.starts_with("package com.example.plugin.ui;"));
+        assert!(
+            rendered.contains("public static final Sound SUCCESS = Sound.ENTITY_PLAYER_LEVELUP;")
         );
-
-        Ok(())
+        assert!(rendered.contains("public static final Sound CLICK = Sound.UI_BUTTON_CLICK;"));
+        assert!(rendered.contains("Material.valueOf(\"GRAY_STAINED_GLASS_PANE\")"));
+        // valueOrThrow throws NoSuchElementException, which the theme loader never caught, so
+        // parsing a hex colour crashed UITheme on load.
+        assert!(!rendered.contains("valueOrThrow"));
     }
 
-    pub async fn generate_base_menu(&self) -> Result<()> {
-        let template = include_str!("../../templates/BaseMenu.java.j2");
-        let ui_core_package = format!("{}.ui.core", self.package);
-        let output_path = self
-            .get_package_path(&ui_core_package)
-            .join("BaseMenu.java");
+    #[test]
+    fn every_bundled_theme_renders() {
+        let registry = Path::new(env!("CARGO_MANIFEST_DIR")).join("registry/themes.json");
+        let themes: Vec<Theme> =
+            serde_json::from_str(&fs::read_to_string(registry).unwrap()).unwrap();
 
-        let ctx = minijinja::context! {
-            package => ui_core_package,
-        };
-
-        let rendered = self
-            .env
-            .render_str(template, ctx)
-            .context("Failed to render BaseMenu.java")?;
-
-        if let Some(parent) = output_path.parent() {
-            fs::create_dir_all(parent)?;
+        assert!(!themes.is_empty());
+        for theme in &themes {
+            let rendered = render_theme(theme, "com.example.plugin")
+                .unwrap_or_else(|e| panic!("theme {} failed: {e:#}", theme.name));
+            assert!(rendered.contains(&format!("Theme: {}", theme.name)));
         }
-
-        fs::write(&output_path, rendered)?;
-
-        println!(
-            "{} {}",
-            "✓".green(),
-            format!("Created {}", output_path.display()).dimmed()
-        );
-
-        Ok(())
     }
 }

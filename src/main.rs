@@ -1,13 +1,15 @@
 mod cli;
 mod commands;
 mod config;
+mod installer;
 mod java;
+mod minecraft;
+mod pack;
 mod registry;
 mod utils;
 
 use anyhow::Result;
 use clap::Parser;
-use tracing::info;
 
 use cli::{Cli, Commands};
 use colored::Colorize;
@@ -15,11 +17,13 @@ use commands::run_command;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    tracing_subscriber::fmt::init();
+    // Warnings and errors only by default; command output is printed directly.
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::WARN)
+        .without_time()
+        .init();
 
     let cli = Cli::parse();
-
-    info!("CraftCN v{} starting", env!("CARGO_PKG_VERSION"));
 
     if matches!(cli.command, Commands::Init { .. }) {
         println!();

@@ -1,176 +1,159 @@
 package com.craftcn.ui.menus;
 
+import com.craftcn.ui.UITheme;
 import com.craftcn.ui.core.BaseMenu;
-import com.craftcn.ui.core.UITheme;
+import com.craftcn.ui.core.Button;
 import com.craftcn.ui.util.ItemBuilder;
+import net.kyori.adventure.text.Component;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
-import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 
+/**
+ * A framed, paginated menu. Items fill the inner grid (seven columns by the rows between the top and bottom
+ * rows), and the bottom row holds previous, page info and next.
+ * <p>
+ * Call {@link #setSource(List)} and {@link #setRenderer(Function)}, then {@link #open()}.
+ *
+ * @param <T> the type of item being paged
+ */
 public class PaginatedMenu<T> extends BaseMenu {
-    
-    private List<T> items;
-    private Function<T, ItemStack> renderer;
-    private int currentPage = 0;
-    private int itemsPerPage = 28;
-    private int startIndex = 9;
-    private int endIndex = 36;
-    
-    public PaginatedMenu(Plugin plugin, Player player, String title) {
-        super(plugin, player, title, 54);
-        this.items = new ArrayList<>();
+
+    public static final String PREVIOUS_LABEL = "Previous page";
+    public static final String NEXT_LABEL = "Next page";
+    public static final String EMPTY_LABEL = "Nothing here yet";
+
+    private static final int COLUMNS = 7;
+
+    private final List<T> items = new ArrayList<>();
+    private final List<Integer> contentSlots = new ArrayList<>();
+    private final int lastRow;
+    private Function<T, ItemStack> renderer = item -> ItemBuilder.from(Material.PAPER).name(String.valueOf(item)).build();
+    private BiConsumer<T, Button.Click> onItemClick = (item, click) -> { };
+    private int page;
+
+    /**
+     * @param rows the menu height, from 3 to 6
+     */
+    public PaginatedMenu(Plugin plugin, Player player, String title, int rows) {
+        this(plugin, player, Component.text(title), rows);
     }
-    
-    public void setSource(List<T> items) {
-        this.items = items;
-        this.currentPage = 0;
+
+    public PaginatedMenu(Plugin plugin, Player player, Component title, int rows) {
+        super(plugin, player, title, rows * 9);
+        if (rows < 3 || rows > 6) {
+            throw new IllegalArgumentException("rows must be between 3 and 6: " + rows);
+        }
+
+        this.lastRow = rows - 1;
+        for (int row = 1; row < lastRow; row++) {
+            for (int column = 1; column <= COLUMNS; column++) {
+                contentSlots.add(row * 9 + column);
+            }
+        }
     }
-    
+
+    /** Replaces the items to page through and returns to the first page. */
+    public void setSource(List<T> source) {
+        items.clear();
+        items.addAll(source);
+        page = 0;
+        refresh();
+    }
+
+    /** Maps each item to the icon shown for it. */
     public void setRenderer(Function<T, ItemStack> renderer) {
         this.renderer = renderer;
     }
-    
-    public void setItemsPerPage(int count) {
-        this.itemsPerPage = count;
+
+    /** Runs when the player clicks an item. */
+    public void onItemClick(BiConsumer<T, Button.Click> handler) {
+        this.onItemClick = handler;
     }
-    
-    public void setSlotRange(int start, int end) {
-        this.startIndex = start;
-        this.endIndex = end;
+
+    public void nextPage() {
+        if (page < pageCount() - 1) {
+            page++;
+            refresh();
+        }
     }
-    
+
+    public void previousPage() {
+        if (page > 0) {
+            page--;
+            refresh();
+        }
+    }
+
+    /** Zero-based index of the page being shown. */
+    public int page() {
+        return page;
+    }
+
+    public int pageCount() {
+        return Math.max(1, (int) Math.ceil((double) items.size() / contentSlots.size()));
+    }
+
+    public List<T> items() {
+        return Collections.unmodifiableList(items);
+    }
+
     @Override
     protected void build() {
-        inventory.clear();
-        
-        renderPagination();
-        renderItems();
-        fillEmptySlots();
-    }
-    
-    private void renderItems() {
-        if (renderer == null || items.isEmpty()) {
-            return;
+        fillRange(0, size, filler());
+
+        int perPage = contentSlots.size();
+        int from = page * perPage;
+        int to = Math.min(from + perPage, items.size());
+
+        if (items.isEmpty()) {
+            ItemStack empty = ItemBuilder.from(Material.BARRIER).name(EMPTY_LABEL).build();
+            setItem(contentSlots.get(contentSlots.size() / 2), empty);
         }
-        
-        int start = currentPage * itemsPerPage;
-        int end = Math.min(start + itemsPerPage, items.size());
-        
-        for (int i = start; i < end; i++) {
-            int slot = startIndex + (i - start);
-            if (slot < endIndex) {
-                T item = items.get(i);
-                ItemStack rendered = render(item, slot);
-                inventory.setItem(slot, rendered);
-            }
+
+        for (int index = from; index < to; index++) {
+            T item = items.get(index);
+            setButton(contentSlots.get(index - from), Button.of(renderer.apply(item), click -> onItemClick.accept(item, click)));
+        }
+
+        int previousSlot = lastRow * 9;
+        int infoSlot = lastRow * 9 + 4;
+        int nextSlot = lastRow * 9 + 8;
+
+        if (page > 0) {
+            setButton(previousSlot, Button.of(navigation(false), click -> previousPage()));
+        } else {
+            setButton(previousSlot, Button.display(navigation(false)));
+        }
+
+        setItem(infoSlot, pageInfo());
+
+        if (page < pageCount() - 1) {
+            setButton(nextSlot, Button.of(navigation(true), click -> nextPage()));
+        } else {
+            setButton(nextSlot, Button.display(navigation(true)));
         }
     }
-    
-    protected ItemStack render(T item, int slot) {
-        if (renderer != null) {
-            return renderer.apply(item);
-        }
-        // Default rendering if no custom renderer
-        return ItemBuilder.from(Material.PAPER)
-            .name(item.toString())
-            .build();
-    }
-    
-    private void renderPagination() {
-        inventory.setItem(0, createFiller());
-        inventory.setItem(1, createFiller());
-        inventory.setItem(2, createFiller());
-        inventory.setItem(3, createFiller());
-        inventory.setItem(5, createFiller());
-        inventory.setItem(6, createFiller());
-        inventory.setItem(7, createFiller());
-        inventory.setItem(8, createFiller());
-        
-        ItemStack prevButton = createNavigationButton(false);
-        ItemStack nextButton = createNavigationButton(true);
-        
-        inventory.setItem(45, prevButton);
-        inventory.setItem(53, nextButton);
-        
-        fillRange(36, 45);
-        
-        ItemStack pageInfo = createPageInfo();
-        inventory.setItem(49, pageInfo);
-    }
-    
-    private ItemStack createNavigationButton(boolean isNext) {
-        String displayName = isNext ? "Next Page" : "Previous Page";
-        Material material = isNext ? UITheme.NEXT_BUTTON : UITheme.BACK_BUTTON;
-        
+
+    private ItemStack navigation(boolean next) {
+        Material material = next ? UITheme.NEXT_BUTTON : UITheme.BACK_BUTTON;
         return ItemBuilder.from(material)
-            .name(displayName)
-            .lore("Page " + (currentPage + (isNext ? 2 : 1)))
-            .build();
+                .name(next ? NEXT_LABEL : PREVIOUS_LABEL)
+                .lore("Page " + (page + (next ? 2 : 0)) + " of " + pageCount())
+                .build();
     }
-    
-    private ItemStack createPageInfo() {
-        int totalPages = (int) Math.ceil((double) items.size() / itemsPerPage);
+
+    private ItemStack pageInfo() {
         return ItemBuilder.from(Material.BOOK)
-            .name("Page Info")
-            .lore("Page: " + (currentPage + 1) + " / " + Math.max(1, totalPages))
-            .lore("Items: " + items.size())
-            .build();
-    }
-    
-    @Override
-    protected void onClick(InventoryClickEvent event) {
-        int slot = event.getSlot();
-        
-        if (slot == 45 && currentPage > 0) {
-            currentPage--;
-            build();
-            player.playSound(player.getLocation(), UITheme.CLICK, 1.0f, 1.0f);
-        } else if (slot == 53 && (currentPage + 1) * itemsPerPage < items.size()) {
-            currentPage++;
-            build();
-            player.playSound(player.getLocation(), UITheme.CLICK, 1.0f, 1.0f);
-        } else if (slot >= startIndex && slot < endIndex) {
-            int itemIndex = currentPage * itemsPerPage + (slot - startIndex);
-            if (itemIndex >= 0 && itemIndex < items.size()) {
-                T item = items.get(itemIndex);
-                onItemClick(item, slot);
-            }
-        }
-    }
-    
-    protected void onItemClick(T item, int slot) {
-    }
-    
-    public void nextPage() {
-        int totalPages = (int) Math.ceil((double) items.size() / itemsPerPage);
-        if (currentPage < totalPages - 1) {
-            currentPage++;
-            build();
-        }
-    }
-    
-    public void previousPage() {
-        if (currentPage > 0) {
-            currentPage--;
-            build();
-        }
-    }
-    
-    public int getCurrentPage() {
-        return currentPage;
-    }
-    
-    public int getTotalPages() {
-        return (int) Math.ceil((double) items.size() / itemsPerPage);
-    }
-    
-    public List<T> getItems() {
-        return items;
+                .name("Page " + (page + 1) + " of " + pageCount())
+                .lore(items.size() + " items")
+                .build();
     }
 }

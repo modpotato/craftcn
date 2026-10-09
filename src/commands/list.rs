@@ -1,93 +1,86 @@
 use anyhow::Result;
 use colored::Colorize;
-use std::collections::HashMap;
-use std::fs;
 
 use crate::config::CraftCNConfig;
 use crate::registry::client::RegistryClient;
+use crate::registry::models::category_title;
+use crate::utils::project::find_project_root;
 
 pub async fn handle_list(category_opt: Option<String>, installed_only: bool) -> Result<()> {
-    let registry = RegistryClient::get_registry().await?;
+    let client = RegistryClient::from_env();
+    let registry = client.index().await?;
 
-    let mut installed_components: Vec<String> = Vec::new();
-
-    if installed_only {
-        let project_root = crate::utils::project::find_project_root()?;
-        let config_path = project_root.join("craftcn.json");
-
-        if config_path.exists() {
-            let config: CraftCNConfig = serde_json::from_str(&fs::read_to_string(&config_path)?)?;
-            installed_components = config.components;
-        }
-    }
-
-    let category_descriptions: HashMap<String, &str> = HashMap::from([
-        ("A".to_string(), "Inventory GUIs"),
-        ("B".to_string(), "Chat Widgets"),
-        ("C".to_string(), "HUD & Visuals"),
-        ("D".to_string(), "Utilities"),
-    ]);
-
-    let mut categories: Vec<String> = registry.categories.keys().cloned().collect();
-    categories.sort();
+    let installed: Vec<String> = if installed_only {
+        let root = find_project_root()?;
+        CraftCNConfig::load(&root)?.components
+    } else {
+        // Mark installed components whenever a project is nearby, without requiring one.
+        find_project_root()
+            .ok()
+            .and_then(|root| CraftCNConfig::load(&root).ok())
+            .map(|config| config.components)
+            .unwrap_or_default()
+    };
 
     println!("{}", "Available Components".bold().cyan());
     println!("{}", "═".repeat(50).cyan());
     println!();
 
-    for category in categories {
-        if let Some(cat_opt) = &category_opt {
-            if *cat_opt != category {
-                continue;
-            }
+    let wanted = category_opt.map(|c| c.to_uppercase());
+    let mut shown = 0;
+
+    for (category, components) in registry.by_category() {
+        if wanted.as_deref().is_some_and(|w| w != category) {
+            continue;
         }
 
-        let components = &registry.categories.get(&category).unwrap();
-
+        let components: Vec<_> = components
+            .into_iter()
+            .filter(|c| !installed_only || installed.contains(&c.name))
+            .collect();
         if components.is_empty() {
             continue;
         }
 
-        println!(
-            "{} {}",
-            category.yellow().bold(),
-            category_descriptions.get(&category).unwrap_or(&"")
-        );
+        println!("{} {}", category.yellow().bold(), category_title(&category));
         println!("{}", "─".repeat(50).dimmed());
 
-        let mut sorted_components: Vec<_> = components.iter().collect();
-        sorted_components.sort_by_key(|c| c.name.clone());
-
-        for component in sorted_components {
-            if installed_only && !installed_components.contains(&component.name) {
-                continue;
-            }
-
-            let installed_indicator = if installed_components.contains(&component.name) {
+        for component in components {
+            shown += 1;
+            let marker = if installed.contains(&component.name) {
                 "✓".green()
             } else {
                 " ".dimmed()
             };
 
+            let mut badges = Vec::new();
+            if let Some(minimum) = &component.minecraft {
+                badges.push(format!("MC {minimum}+"));
+            }
+            if component.resource_pack {
+                badges.push("resource pack".to_string());
+            }
+
             println!(
                 "  {} {} {}",
-                installed_indicator,
+                marker,
                 component.name.cyan(),
                 component.description.dimmed()
             );
 
-            if !component.dependencies.is_empty() {
-                println!(
-                    "    {}",
-                    format!("Deps: {}", component.dependencies.join(", ")).dimmed()
-                );
+            if !badges.is_empty() || !component.dependencies.is_empty() {
+                let mut details = badges;
+                if !component.dependencies.is_empty() {
+                    details.push(format!("deps: {}", component.dependencies.join(", ")));
+                }
+                println!("    {}", details.join("  ·  ").dimmed());
             }
         }
 
         println!();
     }
 
-    if installed_only && installed_components.is_empty() {
+    if installed_only && shown == 0 {
         println!(
             "{}",
             "No components installed. Run 'craftcn add <component>' to install components."

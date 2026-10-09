@@ -1,191 +1,151 @@
 package com.craftcn.ui.hud;
 
+import com.craftcn.ui.util.Tasks;
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
-import org.bukkit.Bukkit;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
+import java.time.Duration;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
+/**
+ * A countdown shown as a boss bar.
+ * <p>
+ * Each viewer has their own bar, and every bar is updated on its viewer's thread. That keeps the timer correct on
+ * Folia as well as Paper. The timer itself ticks on the global region.
+ */
 public class BossBarTimer {
-    
+
+    private static final long TICKS_PER_STEP = 5;
+    private static final long MILLIS_PER_TICK = 50;
+
     private final Plugin plugin;
-    private final BossBar bossBar;
-    private final List<Player> viewers;
-    private int taskId = -1;
-    private long duration;
-    private TimeUnit unit;
-    private long remaining;
-    private Consumer<BossBarTimer> onComplete;
-    private Consumer<BossBarTimer> onTick;
-    private boolean running;
-    
-    public BossBarTimer(Plugin plugin, Component title, float progress, BossBar.Color color, BossBar.Overlay overlay) {
+    private final Component title;
+    private final Duration total;
+    private final Map<Player, BossBar> bars = new ConcurrentHashMap<>();
+
+    private BossBar.Color color = BossBar.Color.BLUE;
+    private BossBar.Overlay overlay = BossBar.Overlay.PROGRESS;
+    private Function<Duration, Component> label = BossBarTimer::clock;
+    private Consumer<BossBarTimer> onComplete = timer -> { };
+
+    private volatile Duration remaining;
+    private volatile ScheduledTask ticker;
+
+    public BossBarTimer(Plugin plugin, Component title, Duration duration) {
         this.plugin = plugin;
-        this.bossBar = BossBar.bossBar(title, progress, color, overlay);
-        this.viewers = new ArrayList<>();
-        this.running = false;
+        this.title = title;
+        this.total = duration;
+        this.remaining = duration;
     }
-    
-    public static BossBarTimer create(Plugin plugin, String title) {
-        return create(plugin, Component.text(title));
+
+    public static BossBarTimer create(Plugin plugin, String title, Duration duration) {
+        return new BossBarTimer(plugin, Component.text(title), duration);
     }
-    
-    public static BossBarTimer create(Plugin plugin, Component title) {
-        return new BossBarTimer(plugin, title, 1.0f, BossBar.Color.BLUE, BossBar.Overlay.PROGRESS);
-    }
-    
-    public static BossBarTimer countdown(Plugin plugin, Component title, int seconds) {
-        BossBarTimer timer = new BossBarTimer(plugin, title, 1.0f, BossBar.Color.RED, BossBar.Overlay.NOTCHED_10);
-        timer.duration = seconds;
-        timer.unit = TimeUnit.SECONDS;
-        return timer;
-    }
-    
-    public static BossBarTimer countdown(Plugin plugin, String title, int seconds) {
-        return countdown(plugin, Component.text(title), seconds);
-    }
-    
-    public BossBarTimer setTitle(String title) {
-        return setTitle(Component.text(title));
-    }
-    
-    public BossBarTimer setTitle(Component title) {
-        bossBar.name(title);
+
+    public BossBarTimer color(BossBar.Color color) {
+        this.color = color;
         return this;
     }
-    
-    public BossBarTimer setColor(BossBar.Color color) {
-        bossBar.color(color);
+
+    public BossBarTimer overlay(BossBar.Overlay overlay) {
+        this.overlay = overlay;
         return this;
     }
-    
-    public BossBarTimer setOverlay(BossBar.Overlay overlay) {
-        bossBar.overlay(overlay);
+
+    /** Formats the time left. The default shows {@code m:ss}. */
+    public BossBarTimer label(Function<Duration, Component> label) {
+        this.label = label;
         return this;
     }
-    
-    public BossBarTimer setProgress(float progress) {
-        bossBar.progress(progress);
-        return this;
-    }
-    
-    public BossBarTimer setDuration(long duration, TimeUnit unit) {
-        this.duration = duration;
-        this.unit = unit;
-        return this;
-    }
-    
-    public BossBarTimer setOnComplete(Consumer<BossBarTimer> callback) {
+
+    /** Runs on the global region when the countdown reaches zero. Use {@link Tasks} to act on players. */
+    public BossBarTimer onComplete(Consumer<BossBarTimer> callback) {
         this.onComplete = callback;
         return this;
     }
-    
-    public BossBarTimer setOnTick(Consumer<BossBarTimer> callback) {
-        this.onTick = callback;
-        return this;
-    }
-    
-    public BossBarTimer addPlayer(Player player) {
-        bossBar.viewer(player);
-        if (!viewers.contains(player)) {
-            viewers.add(player);
+
+    /** Shows the bar to {@code player}. Call from any thread. */
+    public void addViewer(Player player) {
+        BossBar bar = BossBar.bossBar(name(remaining), progress(remaining), color, overlay);
+        if (bars.putIfAbsent(player, bar) == null) {
+            Tasks.run(plugin, player, () -> player.showBossBar(bar));
         }
-        return this;
     }
-    
-    public BossBarTimer removePlayer(Player player) {
-        bossBar.removeViewer(player);
-        viewers.remove(player);
-        return this;
-    }
-    
-    public BossBarTimer addAllPlayers() {
-        for (Player player : Bukkit.getOnlinePlayers()) {
-            addPlayer(player);
+
+    /** Hides the bar from {@code player}. */
+    public void removeViewer(Player player) {
+        BossBar bar = bars.remove(player);
+        if (bar != null) {
+            Tasks.run(plugin, player, () -> player.hideBossBar(bar));
         }
-        return this;
     }
-    
-    public List<Player> getViewers() {
-        return new ArrayList<>(viewers);
-    }
-    
-    public void start() {
-        if (running || duration <= 0) {
+
+    /** Starts the countdown from the full duration. Does nothing if it is already running. */
+    public synchronized void start() {
+        if (ticker != null) {
             return;
         }
-        
-        running = true;
-        remaining = unit.toSeconds(duration);
-        
-        taskId = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
-            if (remaining <= 0) {
-                complete();
-                return;
-            }
-            
-            remaining--;
-            float progress = (float) remaining / unit.toSeconds(duration);
-            bossBar.progress(Math.max(0, Math.min(1, progress)));
-            
-            if (onTick != null) {
-                onTick.accept(this);
-            }
-        }, 0L, 20L).getTaskId();
+        remaining = total;
+        ticker = Tasks.globalRepeat(plugin, 0, TICKS_PER_STEP, this::tick);
     }
-    
-    public void pause() {
-        if (running && taskId != -1) {
-            Bukkit.getScheduler().cancelTask(taskId);
-            running = false;
+
+    /** Stops the countdown and keeps the bars visible at their current value. */
+    public synchronized void stop() {
+        if (ticker != null) {
+            ticker.cancel();
+            ticker = null;
         }
     }
-    
-    public void resume() {
-        if (!running && remaining > 0) {
-            start();
+
+    public boolean isRunning() {
+        return ticker != null;
+    }
+
+    /** Time left in the countdown. */
+    public Duration remaining() {
+        return remaining;
+    }
+
+    private void tick(ScheduledTask task) {
+        Duration next = remaining.minusMillis(TICKS_PER_STEP * MILLIS_PER_TICK);
+        remaining = next.isNegative() ? Duration.ZERO : next;
+
+        for (Map.Entry<Player, BossBar> entry : bars.entrySet()) {
+            BossBar bar = entry.getValue();
+            Tasks.run(plugin, entry.getKey(), () -> {
+                bar.name(name(remaining));
+                bar.progress(progress(remaining));
+            });
         }
-    }
-    
-    public void stop() {
-        pause();
-        remaining = 0;
-        bossBar.progress(0);
-    }
-    
-    public void complete() {
-        stop();
-        if (onComplete != null) {
+
+        if (remaining.isZero()) {
+            task.cancel();
+            ticker = null;
             onComplete.accept(this);
         }
     }
-    
-    public boolean isRunning() {
-        return running;
+
+    private Component name(Duration left) {
+        return title.append(Component.text("  ")).append(label.apply(left));
     }
-    
-    public long getRemaining(TimeUnit unit) {
-        return unit.convert(remaining, TimeUnit.SECONDS);
-    }
-    
-    public float getProgress() {
-        return bossBar.progress();
-    }
-    
-    public BossBar getBossBar() {
-        return bossBar;
-    }
-    
-    public void destroy() {
-        stop();
-        for (Player player : viewers) {
-            bossBar.removeViewer(player);
+
+    private float progress(Duration left) {
+        if (total.isZero()) {
+            return 0f;
         }
-        viewers.clear();
+        float ratio = (float) left.toMillis() / total.toMillis();
+        return Math.max(0f, Math.min(1f, ratio));
+    }
+
+    private static Component clock(Duration left) {
+        long seconds = Math.max(0, left.toSeconds());
+        return Component.text(String.format("%d:%02d", seconds / 60, seconds % 60), NamedTextColor.WHITE);
     }
 }

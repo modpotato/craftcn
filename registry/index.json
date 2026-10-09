@@ -1,20 +1,24 @@
 {
-  "version": "1.0.0",
+  "version": "2.0.0",
   "components": [
     {
       "name": "base-menu",
       "category": "A",
-      "description": "Abstract base class for all inventory menus with click handling and cleanup",
+      "description": "Holder-based inventory menu base with shared click handling, clickable buttons and safe cleanup",
       "dependencies": [],
+      "minecraft": "1.21.4",
       "files": [
-        { "path": "ui/core/BaseMenu.java" }
+        { "path": "ui/core/BaseMenu.java" },
+        { "path": "ui/core/Button.java" },
+        { "path": "ui/core/MenuListener.java" }
       ]
     },
     {
       "name": "paginated-menu",
       "category": "A",
-      "description": "Paginated inventory menu with automatic page calculation and navigation",
+      "description": "Paginated inventory menu with automatic page calculation, navigation buttons and themed chrome",
       "dependencies": ["base-menu", "item-builder"],
+      "minecraft": "1.21.4",
       "files": [
         { "path": "ui/menus/PaginatedMenu.java" }
       ]
@@ -22,35 +26,49 @@
     {
       "name": "confirmation-menu",
       "category": "A",
-      "description": "Simple confirmation dialog with confirm/deny callbacks",
-      "dependencies": ["base-menu"],
+      "description": "Confirm and cancel dialog for destructive actions, with themed sounds and callbacks",
+      "dependencies": ["base-menu", "item-builder"],
+      "minecraft": "1.21.4",
       "files": [
         { "path": "ui/menus/ConfirmationMenu.java" }
       ]
     },
     {
-      "name": "form-menu",
-      "category": "A",
-      "description": "Wrapper for Anvil and Sign GUIs to get string input from players",
-      "dependencies": [],
-      "files": [
-        { "path": "ui/forms/FormMenu.java" }
-      ]
-    },
-    {
       "name": "selection-menu",
       "category": "A",
-      "description": "Scrolling selection menu with multi-select toggle support",
+      "description": "Scrolling selection menu with single and multi-select support",
       "dependencies": ["base-menu", "item-builder"],
+      "minecraft": "1.21.4",
       "files": [
         { "path": "ui/menus/SelectionMenu.java" }
       ]
     },
     {
+      "name": "form-menu",
+      "category": "A",
+      "description": "Anvil text input: the player types a value and you receive it in a callback or future",
+      "dependencies": ["base-menu", "item-builder"],
+      "minecraft": "1.21.4",
+      "files": [
+        { "path": "ui/forms/FormMenu.java" }
+      ]
+    },
+    {
+      "name": "dialog-menu",
+      "category": "A",
+      "description": "Native Paper dialogs: notices, confirmations, multi-action menus and text, boolean or number forms",
+      "dependencies": [],
+      "minecraft": "1.21.6",
+      "files": [
+        { "path": "ui/menus/DialogMenu.java" }
+      ]
+    },
+    {
       "name": "chat-prompt",
       "category": "B",
-      "description": "Captures the next chat message from a player with timeout support",
-      "dependencies": [],
+      "description": "Captures the player's next chat message on their thread, with timeout and cancel",
+      "dependencies": ["scheduler"],
+      "minecraft": "1.21.4",
       "files": [
         { "path": "ui/chat/ChatPrompt.java" }
       ]
@@ -58,8 +76,9 @@
     {
       "name": "interactive-message",
       "category": "B",
-      "description": "Builder pattern for complex hover/click events in chat messages",
+      "description": "Builder for chat components with hover text, click commands, copy and server-side click callbacks",
       "dependencies": [],
+      "minecraft": "1.21.4",
       "files": [
         { "path": "ui/chat/InteractiveMessage.java" }
       ]
@@ -67,8 +86,9 @@
     {
       "name": "scoreboard-sidebar",
       "category": "C",
-      "description": "Flicker-free packet-based scoreboard with line support",
+      "description": "Flicker-free sidebar with per-line updates, Adventure titles and blank score numbers",
       "dependencies": [],
+      "minecraft": "1.21.4",
       "files": [
         { "path": "ui/hud/ScoreboardSidebar.java" }
       ]
@@ -76,8 +96,9 @@
     {
       "name": "bossbar-timer",
       "category": "C",
-      "description": "BossBar wrapper with countdown timer functionality",
-      "dependencies": [],
+      "description": "Countdown boss bar with color, overlay and progress control, scheduled Folia-safely",
+      "dependencies": ["scheduler"],
+      "minecraft": "1.21.4",
       "files": [
         { "path": "ui/hud/BossBarTimer.java" }
       ]
@@ -85,17 +106,48 @@
     {
       "name": "toast-notification",
       "category": "C",
-      "description": "Achievement-style toast notifications with custom icons",
-      "dependencies": [],
+      "description": "Advancement-based toast popups with custom icons and frame styles, without chat spam",
+      "dependencies": ["scheduler"],
+      "minecraft": "1.21.4",
       "files": [
         { "path": "ui/hud/ToastNotification.java" }
       ]
     },
     {
+      "name": "hologram",
+      "category": "C",
+      "description": "Floating text displays with live updates, built on TextDisplay entities",
+      "dependencies": ["scheduler"],
+      "minecraft": "1.21.4",
+      "files": [
+        { "path": "ui/hud/Hologram.java" }
+      ]
+    },
+    {
+      "name": "animation",
+      "category": "C",
+      "description": "Frame-based animator for titles, actionbars and icons, running on the viewer's thread",
+      "dependencies": ["scheduler"],
+      "minecraft": "1.21.4",
+      "files": [
+        { "path": "ui/hud/Animator.java" }
+      ]
+    },
+    {
+      "name": "text-fx",
+      "category": "C",
+      "description": "Gradient, rainbow, shimmer and typewriter text effects built on Adventure",
+      "dependencies": [],
+      "files": [
+        { "path": "ui/hud/TextFx.java" }
+      ]
+    },
+    {
       "name": "item-builder",
       "category": "D",
-      "description": "Fluent API for creating ItemStacks with name, lore, and enchantments",
+      "description": "Fluent ItemStack builder for names, lore, item models, tooltip styles and glint",
       "dependencies": [],
+      "minecraft": "1.21.4",
       "files": [
         { "path": "ui/util/ItemBuilder.java" }
       ]
@@ -103,105 +155,46 @@
     {
       "name": "head-util",
       "category": "D",
-      "description": "Utility for fetching player heads with Base64 texture caching",
+      "description": "Player heads from player names or skin URLs using PlayerProfile textures, with caching",
       "dependencies": [],
+      "minecraft": "1.21.4",
       "files": [
         { "path": "ui/util/HeadUtil.java" }
       ]
+    },
+    {
+      "name": "scheduler",
+      "category": "D",
+      "description": "Folia-safe scheduling helpers for player, region, global and async tasks with cancel handles",
+      "dependencies": [],
+      "minecraft": "1.21.4",
+      "files": [
+        { "path": "ui/util/Tasks.java" }
+      ]
+    },
+    {
+      "name": "resource-pack",
+      "category": "E",
+      "description": "Sends a generated resource pack on join with SHA-1 verification and status callbacks",
+      "dependencies": ["scheduler"],
+      "minecraft": "1.21.4",
+      "resource_pack": true,
+      "files": [
+        { "path": "ui/pack/ResourcePackService.java" }
+      ]
+    },
+    {
+      "name": "texture-gui",
+      "category": "E",
+      "description": "Resource pack GUIs: font-based title plates, textured icons and filler, and a TexturedMenu base",
+      "dependencies": ["base-menu", "item-builder"],
+      "minecraft": "1.21.4",
+      "resource_pack": true,
+      "files": [
+        { "path": "ui/textures/GuiFont.java" },
+        { "path": "ui/textures/GuiIcons.java" },
+        { "path": "ui/textures/TexturedMenu.java" }
+      ]
     }
-  ],
-  "categories": {
-    "A": [
-      {
-        "name": "base-menu",
-        "category": "A",
-        "description": "Abstract base class for all inventory menus with click handling and cleanup",
-        "dependencies": [],
-        "files": []
-      },
-      {
-        "name": "paginated-menu",
-        "category": "A",
-        "description": "Paginated inventory menu with automatic page calculation and navigation",
-        "dependencies": ["base-menu", "item-builder"],
-        "files": []
-      },
-      {
-        "name": "confirmation-menu",
-        "category": "A",
-        "description": "Simple confirmation dialog with confirm/deny callbacks",
-        "dependencies": ["base-menu"],
-        "files": []
-      },
-      {
-        "name": "form-menu",
-        "category": "A",
-        "description": "Wrapper for Anvil and Sign GUIs to get string input from players",
-        "dependencies": [],
-        "files": []
-      },
-      {
-        "name": "selection-menu",
-        "category": "A",
-        "description": "Scrolling selection menu with multi-select toggle support",
-        "dependencies": ["base-menu", "item-builder"],
-        "files": []
-      }
-    ],
-    "B": [
-      {
-        "name": "chat-prompt",
-        "category": "B",
-        "description": "Captures the next chat message from a player with timeout support",
-        "dependencies": [],
-        "files": []
-      },
-      {
-        "name": "interactive-message",
-        "category": "B",
-        "description": "Builder pattern for complex hover/click events in chat messages",
-        "dependencies": [],
-        "files": []
-      }
-    ],
-    "C": [
-      {
-        "name": "scoreboard-sidebar",
-        "category": "C",
-        "description": "Flicker-free packet-based scoreboard with line support",
-        "dependencies": [],
-        "files": []
-      },
-      {
-        "name": "bossbar-timer",
-        "category": "C",
-        "description": "BossBar wrapper with countdown timer functionality",
-        "dependencies": [],
-        "files": []
-      },
-      {
-        "name": "toast-notification",
-        "category": "C",
-        "description": "Achievement-style toast notifications with custom icons",
-        "dependencies": [],
-        "files": []
-      }
-    ],
-    "D": [
-      {
-        "name": "item-builder",
-        "category": "D",
-        "description": "Fluent API for creating ItemStacks with name, lore, and enchantments",
-        "dependencies": [],
-        "files": []
-      },
-      {
-        "name": "head-util",
-        "category": "D",
-        "description": "Utility for fetching player heads with Base64 texture caching",
-        "dependencies": [],
-        "files": []
-      }
-    ]
-  }
+  ]
 }

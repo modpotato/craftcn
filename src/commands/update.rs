@@ -1,47 +1,39 @@
 use anyhow::Result;
 use colored::Colorize;
-use indicatif::{ProgressBar, ProgressStyle};
 
-use crate::registry::client::RegistryClient;
+use crate::registry::client::{RegistryClient, RegistrySource};
 
-pub async fn handle_update(force: bool) -> Result<()> {
-    let project_root = crate::utils::project::find_project_root()?;
-    let config_path = project_root.join("craftcn.json");
+pub async fn handle_update() -> Result<()> {
+    let client = RegistryClient::from_env();
 
-    if !config_path.exists() {
-        anyhow::bail!("CraftCN not initialized. Run 'craftcn init' first.");
+    match client.source() {
+        RegistrySource::Directory(path) => {
+            println!(
+                "{}",
+                format!(
+                    "Using local registry at {} (nothing to refresh).",
+                    path.display()
+                )
+                .yellow()
+            );
+        }
+        RegistrySource::Remote { cache, .. } => {
+            println!("{}", "Refreshing the CraftCN registry...".bold().cyan());
+            client.refresh().await?;
+
+            println!();
+            println!("{}", "✓ Registry refreshed".green());
+            if let Some(cache) = cache {
+                println!("  {}", format!("Cache: {}", cache.display()).dimmed());
+            }
+        }
     }
 
-    println!("{}", "Updating CraftCN registry...".bold().cyan());
-
-    let spinner_style = ProgressStyle::default_bar()
-        .template("{spinner:.green} [{elapsed_precise}] {msg}")?
-        .progress_chars("=>-");
-
-    let pb = ProgressBar::new_spinner();
-    pb.set_style(spinner_style);
-    pb.set_message("Fetching latest registry...");
-    pb.enable_steady_tick(std::time::Duration::from_millis(100));
-
-    RegistryClient::update_cache().await?;
-
-    pb.finish_with_message("Registry updated!");
-
     println!();
-    println!("{}", "✓ Registry updated successfully!".green());
-    println!();
-
-    if force {
-        println!(
-            "{}",
-            "To update installed components, you may need to remove and re-add them:".yellow()
-        );
-        println!(
-            "  {} removes a component",
-            "craftcn remove <component>".cyan()
-        );
-        println!("  {} adds a component", "craftcn add <component>".cyan());
-    }
+    println!(
+        "{}",
+        "Installed components are not changed. Run 'craftcn add <component> --force' to reinstall one.".dimmed()
+    );
 
     Ok(())
 }
