@@ -124,5 +124,89 @@
       "Accent: LightSeaGreen (#20B2AA)",
       "Destructive: Tomato (#FF6347)"
     ]
+  },
+  {
+    "name": "neon",
+    "description": "Synthwave purples and electric accents on a near-black base",
+    "version": "1.0.0",
+    "author": "CraftCN",
+    "palette": {
+      "primary": "#FF2BD6",
+      "secondary": "#7DF9FF",
+      "accent": "#39FF14",
+      "destructive": "#FF3131",
+      "muted": "#5C4B7A",
+      "background": "#120A1F",
+      "foreground": "#F5F0FF"
+    },
+    "assets": {
+      "filler_glass": "PURPLE_STAINED_GLASS_PANE",
+      "back_button": "ARROW",
+      "next_button": "ARROW",
+      "error_icon": "REDSTONE_BLOCK",
+      "success_icon": "EMERALD"
+    },
+    "styles": {
+      "title": "bold + light_purple",
+      "subtitle": "aqua",
+      "accent": "italic + green",
+      "error": "bold + red",
+      "success": "bold + green"
+    },
+    "sounds": {
+      "success": "ENTITY_EXPERIENCE_ORB_PICKUP",
+      "error": "ENTITY_ENDERMAN_TELEPORT",
+      "click": "BLOCK_NOTE_BLOCK_HAT",
+      "open": "BLOCK_BEACON_ACTIVATE",
+      "close": "BLOCK_BEACON_DEACTIVATE"
+    },
+    "preview": [
+      "Primary: Hot Magenta (#FF2BD6)",
+      "Secondary: Electric Cyan (#7DF9FF)",
+      "Accent: Neon Green (#39FF14)",
+      "Destructive: Neon Red (#FF3131)"
+    ]
+  },
+  {
+    "name": "parchment",
+    "description": "Warm brown and gold, like an old map or a tavern ledger",
+    "version": "1.0.0",
+    "author": "CraftCN",
+    "palette": {
+      "primary": "#D4A373",
+      "secondary": "#8D6E63",
+      "accent": "#A67C52",
+      "destructive": "#9B2226",
+      "muted": "#7F5539",
+      "background": "#3B2F2F",
+      "foreground": "#F4E9D8"
+    },
+    "assets": {
+      "filler_glass": "BROWN_STAINED_GLASS_PANE",
+      "back_button": "ARROW",
+      "next_button": "ARROW",
+      "error_icon": "BARRIER",
+      "success_icon": "BOOK"
+    },
+    "styles": {
+      "title": "bold + gold",
+      "subtitle": "gray",
+      "accent": "italic + dark_red",
+      "error": "bold + dark_red",
+      "success": "bold + dark_green"
+    },
+    "sounds": {
+      "success": "ENTITY_VILLAGER_YES",
+      "error": "ENTITY_VILLAGER_NO",
+      "click": "UI_BUTTON_CLICK",
+      "open": "BLOCK_CHEST_OPEN",
+      "close": "BLOCK_CHEST_CLOSE"
+    },
+    "preview": [
+      "Primary: Parchment Gold (#D4A373)",
+      "Secondary: Walnut (#8D6E63)",
+      "Accent: Saddle (#A67C52)",
+      "Destructive: Wine (#9B2226)"
+    ]
   }
 ]

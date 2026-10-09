@@ -1,152 +1,107 @@
 package com.craftcn.ui.forms;
 
-import com.craftcn.ui.core.UITheme;
+import com.craftcn.ui.UITheme;
+import com.craftcn.ui.core.BaseMenu;
+import com.craftcn.ui.core.Button;
 import com.craftcn.ui.util.ItemBuilder;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.HandlerList;
-import org.bukkit.event.Listener;
-import org.bukkit.event.inventory.InventoryClickEvent;
-import org.bukkit.event.inventory.InventoryCloseEvent;
+import org.bukkit.event.inventory.InventoryType;
+import org.bukkit.event.inventory.PrepareAnvilEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.view.AnvilView;
 import org.bukkit.plugin.Plugin;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
-public class FormMenu implements Listener {
-    
-    private final Plugin plugin;
-    private final Player player;
-    private final String title;
-    private final String prompt;
-    private final Consumer<String> callback;
-    
-    private Inventory inventory;
-    private CompletableFuture<String> future;
-    private boolean closed;
-    
-    public FormMenu(Plugin plugin, Player player, String title, String prompt, Consumer<String> callback) {
-        this.plugin = plugin;
-        this.player = player;
-        this.title = title;
-        this.prompt = prompt;
-        this.callback = callback;
-        this.closed = false;
+/**
+ * Asks the player to type a line of text in an anvil. The player edits the name in the anvil's text field and
+ * clicks the result to submit. Closing the anvil without submitting cancels {@link #future()}.
+ * <p>
+ * Usage: {@code new FormMenu(plugin, player, "Rename", "Old name", text -> ...).open();}
+ */
+public class FormMenu extends BaseMenu {
+
+    public static final String SUBMIT_LABEL = "Submit";
+    public static final String PLACEHOLDER = "Type here";
+
+    private static final int FIELD_SLOT = 0;
+    private static final int SUBMIT_SLOT = 2;
+
+    private final String initialText;
+    private final Consumer<String> onSubmit;
+    private final CompletableFuture<String> future = new CompletableFuture<>();
+    private boolean submitted;
+
+    public FormMenu(Plugin plugin, Player player, String title, String initialText, Consumer<String> onSubmit) {
+        this(plugin, player, Component.text(title), initialText, onSubmit);
     }
-    
-    public void open() {
-        inventory = Bukkit.createInventory(null, 45, Component.text(title));
-        
-        ItemStack promptItem = ItemBuilder.from(Material.PAPER)
-            .name("Enter your response:")
-            .addLore(prompt)
-            .build();
-        
-        ItemStack submitItem = ItemBuilder.from(Material.GREEN_WOOL)
-            .name("Submit")
-            .addLore("Click to submit your input")
-            .build();
-        
-        ItemStack cancelItem = ItemBuilder.from(Material.RED_WOOL)
-            .name("Cancel")
-            .addLore("Click to cancel")
-            .build();
-        
-        inventory.setItem(13, promptItem);
-        inventory.setItem(29, submitItem);
-        inventory.setItem(33, cancelItem);
-        
-        for (int i = 0; i < 45; i++) {
-            if (inventory.getItem(i) == null || inventory.getItem(i).getType() == Material.AIR) {
-                inventory.setItem(i, ItemBuilder.from(UITheme.FILLER_GLASS).name(" ").build());
-            }
-        }
-        
-        Bukkit.getPluginManager().registerEvents(this, plugin);
-        player.openInventory(inventory);
-        
-        player.sendMessage(Component.text("Type your response in chat", NamedTextColor.YELLOW));
-        player.sendMessage(Component.text("Or click 'Submit' when done", NamedTextColor.GRAY));
+
+    /**
+     * @param initialText text pre-filled in the input field, may be {@code null}
+     * @param onSubmit    receives the submitted text on the viewer's thread
+     */
+    public FormMenu(Plugin plugin, Player player, Component title, String initialText, Consumer<String> onSubmit) {
+        // An anvil has its own inventory type, so the size passed here is unused.
+        super(plugin, player, title, 3);
+        this.initialText = initialText == null ? "" : initialText;
+        this.onSubmit = onSubmit;
     }
-    
-    public CompletableFuture<String> getInput() {
-        if (future == null) {
-            future = new CompletableFuture<>();
-        }
+
+    /** Completes with the submitted text, or is cancelled when the anvil closes unsubmitted. */
+    public CompletableFuture<String> future() {
         return future;
     }
-    
-    @EventHandler
-    public void onInventoryClick(InventoryClickEvent event) {
-        if (event.getInventory() != inventory || closed) {
+
+    @Override
+    protected Inventory createInventory() {
+        return Bukkit.createInventory(this, InventoryType.ANVIL, title);
+    }
+
+    @Override
+    protected void build() {
+        // The first item seeds the text field: its name is the text the player starts from.
+        String seed = initialText.isEmpty() ? PLACEHOLDER : initialText;
+        setItem(FIELD_SLOT, ItemBuilder.from(Material.PAPER).name(seed).build());
+        setButton(SUBMIT_SLOT, Button.of(submitIcon(), this::submit));
+    }
+
+    @Override
+    protected void onPrepareAnvil(PrepareAnvilEvent event) {
+        // Always offer the submit icon as the result, whatever the text is.
+        event.setResult(submitIcon());
+    }
+
+    @Override
+    protected void onClose() {
+        if (!submitted) {
+            future.cancel(false);
+        }
+    }
+
+    private ItemStack submitIcon() {
+        return ItemBuilder.from(UITheme.SUCCESS_ICON)
+                .name(SUBMIT_LABEL)
+                .lore("Click to submit")
+                .build();
+    }
+
+    private void submit(Button.Click click) {
+        if (submitted) {
             return;
         }
-        
-        event.setCancelled(true);
-        
-        int slot = event.getSlot();
-        if (slot == 29) {
-            handleSubmit();
-        } else if (slot == 33) {
-            handleCancel();
-        }
-    }
-    
-    @EventHandler
-    public void onInventoryClose(InventoryCloseEvent event) {
-        if (event.getInventory() != inventory || closed) {
-            return;
-        }
-        
-        closed = true;
-        HandlerList.unregisterAll(this);
-        
-        if (future != null && !future.isDone()) {
-            future.cancel(true);
-        }
-    }
-    
-    private void handleSubmit() {
-        closed = true;
-        HandlerList.unregisterAll(this);
-        player.closeInventory();
-        
-        if (callback != null) {
-            callback.accept(null);
-        }
-        
-        if (future != null) {
-            future.complete(null);
-        }
-        
-        player.playSound(player.getLocation(), UITheme.SUCCESS, 1.0f, 1.0f);
-    }
-    
-    private void handleCancel() {
-        closed = true;
-        HandlerList.unregisterAll(this);
-        player.closeInventory();
-        
-        if (future != null) {
-            future.cancel(true);
-        }
-        
-        player.playSound(player.getLocation(), UITheme.CLOSE, 1.0f, 1.0f);
-    }
-    
-    public void close() {
-        if (!closed) {
-            closed = true;
-            HandlerList.unregisterAll(this);
-            if (player.getOpenInventory().getTopInventory() == inventory) {
-                player.closeInventory();
-            }
-        }
+        submitted = true;
+
+        String text = click.event().getView() instanceof AnvilView anvil && anvil.getRenameText() != null
+                ? anvil.getRenameText()
+                : "";
+
+        onSubmit.accept(text);
+        future.complete(text);
+        close();
     }
 }

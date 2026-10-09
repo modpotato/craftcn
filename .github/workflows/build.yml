@@ -34,3 +34,21 @@ jobs:
     
     - name: Run tests
       run: cargo test --verbose --target ${{ matrix.target }}
+
+  verify-components:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    # Paper 26.x is compiled for Java 25.
+    - name: Set up JDK 25
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '25'
+
+    - name: Compile every component against the Paper API
+      run: bash scripts/verify-components.sh

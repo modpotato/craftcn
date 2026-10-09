@@ -1,208 +1,142 @@
 # Contributing to CraftCN
 
-Thank you for your interest in contributing to CraftCN! This guide will help you get started.
+Thanks for contributing! This guide covers adding components, the Rust CLI, and how changes get verified.
 
-## Quick Start
+## Quick start
 
-1. Fork the CraftCN repository
-2. Create a new branch: `git checkout -b feature/my-component`
-3. Add your component to `registry/components/<component-name>/`
-4. Update `registry/index.json` with your component metadata
-5. Test your changes locally
-6. Commit and push: `git push origin feature/my-component`
-7. Submit a Pull Request to the main CraftCN repository
+1. Fork the repository and branch from `develop`: `git checkout -b feature/my-component`
+2. Add your sources under `registry/components/<component-name>/`
+3. Add an entry to `registry/index.json`
+4. Run the checks (see [Verifying changes](#verifying-changes))
+5. Open a pull request against `develop`
 
-## Component Development
-
-### File Structure
-
-Each component should follow this structure:
+## Component layout
 
 ```
 registry/components/<component-name>/
 └── ui/
-    ├── <package>/
-    │   └── <ComponentFile>.java
+    ├── <area>/
+    │   └── <ClassName>.java
     └── ...
 ```
 
-### Component Metadata
+Sources are written under the `com.craftcn` namespace. `craftcn add` rewrites every `com.craftcn` reference (package
+line, imports and qualified names) to the user's package, and adds the `UITheme` import where it's needed.
 
-Add your component to `registry/index.json`:
+### Registry entry
+
+Add the component to `registry/index.json`, under `components`. Categories are derived from this list, so there is no
+separate category index to keep in sync.
 
 ```json
 {
-  "name": "your-component-name",
-  "category": "A|B|C|D",
-  "description": "Brief description of what this component does",
-  "dependencies": ["base-menu", "other-component"],
+  "name": "your-component",
+  "category": "A",
+  "description": "One line, shown by craftcn list",
+  "dependencies": ["base-menu", "item-builder"],
+  "minecraft": "1.21.4",
+  "resource_pack": false,
   "files": [
-    { "path": "ui/package/ComponentFile.java" }
+    { "path": "ui/area/YourClass.java" }
   ]
 }
 ```
 
-### Component Categories
+| Field | Meaning |
+| --- | --- |
+| `dependencies` | Components installed first. Must exist in the registry. |
+| `minecraft` | Lowest Minecraft version the APIs need. Omit it only if the component uses nothing version-specific. |
+| `resource_pack` | `true` if the component draws from `craftcn pack` output. `craftcn doctor` then checks that the pack exists. |
+| `files` | Source paths relative to the component directory. They must stay inside it: no `..` and no absolute paths. |
 
-- **A**: Inventory GUIs (BaseMenu, PaginatedMenu, etc.)
-- **B**: Chat Widgets (ChatPrompt, InteractiveMessage, etc.)
-- **C**: HUD & Visuals (ScoreboardSidebar, BossBarTimer, etc.)
-- **D**: Utilities (ItemBuilder, HeadUtil, etc.)
+### Categories
 
-### Coding Standards
+- **A**: Inventory GUIs and dialogs
+- **B**: Chat widgets
+- **C**: HUD & visuals
+- **D**: Utilities
+- **E**: Resource pack GUIs
 
-#### Java Components
+## Java coding standards
 
-1. **Zero Magic Strings**
-   - All text strings must be defined as methods or constants
-   - Do not hardcode strings like "Previous Page" in component code
-   - Use `UITheme.PREVIOUS_BUTTON` or similar theme constants
+Components target the latest stable Paper API and Adventure. Keep them to public Paper and Adventure APIs. Don't use
+NMS, and don't shade dependencies.
 
-2. **Async-Safe Defaults**
-   - Data loading operations must accept CompletableFuture
-   - Run heavy computations off the main thread
-   - Only sync back to Bukkit for inventory operations
+1. **Use modern APIs**
+   - Build menus with `InventoryHolder`, not inventory identity checks.
+   - Use Adventure `Component`s for text. Don't use legacy `ChatColor` strings.
+   - Use item data (`ItemMeta.setItemModel`, `setTooltipStyle`, `setEnchantmentGlintOverride`), not
+     `setCustomModelData`, where a modern equivalent exists.
+   - Don't use deprecated or removal-marked API. `./scripts/verify-components.sh` compiles with `-Xlint:all`, so new
+     warnings show up there.
 
-3. **Use Base Classes**
-   - Extend appropriate base classes from `ui/core/`
-   - Follow the existing patterns for click handlers
+2. **Folia-safe threading**
+   - Touch a player only on that player's thread: `Tasks.run(plugin, player, ...)`, not `Bukkit.getScheduler()`.
+   - Touch entities and blocks only on their region: `Tasks.at(plugin, location, ...)`.
+   - Async-chat, async-network and other off-thread callbacks must hand results back through `Tasks`.
 
-4. **Package Structure**
-   - All components should be under `com.craftcn.ui.*` in the registry
-   - Package rewriting will automatically transform to user's package
+3. **No magic strings**
+   - Put user-visible text in named constants (for example `PaginatedMenu.NEXT_LABEL`), or in the theme.
+
+4. **Use base classes**
+   - Menus extend `BaseMenu`, and clickable slots use `Button`. Don't register your own inventory listeners.
 
 5. **Documentation**
-   - Add public JavaDoc for all public methods
-   - Include usage examples
+   - Add Javadoc to every public type and method, and state which thread a method must be called from.
 
-#### Rust CLI
+## Theme and resource pack constants
 
-1. **Error Handling**
-   - Always return `anyhow::Result` for fallible operations
-   - Provide meaningful context with `.context()` method
+`UITheme` is generated from `registry/themes.json`. Each theme sets a palette, materials and sounds.
 
-2. **Type Safety**
-   - Avoid `.unwrap()` calls except in tests with clear assertions
-   - Use `?` operator for error propagation
+- Sounds are referenced as `Sound.<CONSTANT>` and checked at compile time. Each value must match a constant on
+  `org.bukkit.Sound`.
+- Materials use `Material.valueOf`, so each value must be an exact `Material` enum name.
+- The `texture-gui` glyph and shift code points must match `src/pack/font.rs`. Change both together.
 
-3. **Performance**
-   - Clone only when necessary
-   - Use references where possible
-   - Cache expensive operations
+## Rust CLI standards
 
-4. **Testing**
-   - Write tests for critical paths
-   - Use `tempfile` crate for test file creation
+1. **Error handling**: return `anyhow::Result`, and add context with `.context(...)`.
+2. **No `unwrap()`** outside tests.
+3. **Safety**: registry paths are untrusted. Pass them through `safe_relative_path` before touching the filesystem.
+4. **Tests**: write them for each module. Use `tempfile` for filesystem tests.
+5. **Style**: run `cargo fmt`, and `cargo clippy` before pushing.
 
-## Testing
-
-### Run All Tests
+## Verifying changes
 
 ```bash
-cargo test
+cargo test                          # CLI, registry integrity and generator tests
+bash scripts/verify-components.sh   # installs every component into a Paper 26.2 project and compiles it
 ```
 
-### Run Specific Test
+`verify-components.sh` needs Maven and a JDK 25, because Paper 26.x is built for Java 25. CI runs both checks on
+pushes and pull requests to `develop`.
 
-```bash
-cargo test <test_name>
-```
+For a component, also run it in a server if you can. Headless server checks catch thread and runtime errors that the
+compiler can't.
 
-### Example Component Test
+## Commit messages
 
-```rust
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_rewrites_package_correctly() {
-        let manipulator = JavaManipulator::new("com.example.plugin".to_string());
-        
-        let input = "package com.craftcn.ui.menus;";
-        let expected = "package com.example.plugin.ui.menus;";
-        
-        assert_eq!(manipulator.rewrite_package(input).unwrap(), expected);
-    }
-}
-```
-
-## Submitting Changes
-
-### Commit Message Format
+Use the imperative mood, capitalise the subject, and keep the body at 72 characters or less:
 
 ```
-<component-type>(<component-name>): <brief description>
+add(hud): Add Hologram component
 
-<details>
-
-- Added new component: <component-name>
-- Category: <A|B|C|D>
-- Dependencies: <list of dependencies>
-- Files: <list of Java files>
+- Category: C
+- Dependencies: scheduler
+- Minecraft: 1.21.4+
+- Files: ui/hud/Hologram.java
 ```
 
-Example:
-```
-add(inventory): Add PaginatedMenu component
+## Pull request guidelines
 
-- Added new paginated inventory menu with auto page calculation
-- Category: A
-- Dependencies: base-menu, item-builder
-- Files: ui/menus/PaginatedMenu.java
-```
+1. **Keep it focused.** One component, or one CLI feature, per pull request.
+2. **Update the registry** when a component's files or dependencies change.
+3. **Update the docs** (README and the component table) when you add a command or category.
+4. **Add a CHANGELOG entry** under "Unreleased".
 
-### Pull Request Guidelines
+## Getting help
 
-1. **Keep it small and focused**
-   - One component per PR is ideal
-   - Make the PR title descriptive
+1. Check the [issues](https://github.com/modpotato/craftcn/issues) for similar questions.
+2. Open an issue for bugs or feature requests.
 
-2. **Write clear commit messages**
-   - Follow the format above
-   - Explain why the change was made
-
-3. **Test thoroughly**
-   - All tests must pass: `cargo test`
-   - Test the component in a real Minecraft plugin
-
-4. **Update documentation**
-   - Update README if adding a new category
-   - Add examples if functionality is complex
-
-## Style Guide
-
-### Rust Code
-
-- Follow [Rust API Guidelines](https://rust-lang.github.io/api-guidelines/)
-- Use `cargo clippy` and address all warnings
-- Run `cargo fmt` before committing
-
-### Java Code
-
-- Follow [Google Java Style Guide](https://google.github.io/styleguide/javaguide.html)
-- Use modern Java features (records, pattern matching, lambdas)
-- Limit line length to 100 characters
-
-### Commit Messages
-
-- Use imperative mood: "Add" not "Added"
-- Capitalize the subject line
-- Keep the body at 72 characters or less
-
-## Getting Help
-
-If you need help or have questions:
-
-1. **Check the issues** - Look for similar questions or issues
-2. **Start a discussion** - Ask questions in GitHub Discussions
-3. **Create an issue** - If you've found a bug or want to request a feature
-
-## Recognition
-
-Contributors will be recognized in:
-- README.md contributors section
-- Release notes
-- GitHub contributors graph
-
-Thank you for making CraftCN better! 🚀
+Thank you for making CraftCN better!

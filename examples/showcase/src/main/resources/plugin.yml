@@ -1,0 +1,8 @@
+name: Showcase
+version: 0.1.0
+main: com.example.showcase.ShowcasePlugin
+api-version: '1.21'
+commands:
+  showcase:
+    description: Try the CraftCN components
+    usage: /showcase [shop|form|toast|fx|timer|prompt|hologram]

@@ -1,206 +1,246 @@
-use anyhow::{Context, Result};
-use once_cell::sync::OnceCell;
-use reqwest::Client;
+use anyhow::{bail, Context, Result};
 use std::fs;
-use std::path::PathBuf;
-use std::sync::Mutex;
+use std::path::{Component, Path, PathBuf};
 
 use crate::registry::models::{Registry, Theme};
 
-static REGISTRY_CACHE: OnceCell<Mutex<Option<Registry>>> = OnceCell::new();
-static THEMES_CACHE: OnceCell<Mutex<Option<Vec<Theme>>>> = OnceCell::new();
+/// Where the registry is fetched from when no local checkout is configured.
+pub const DEFAULT_REMOTE: &str =
+    "https://raw.githubusercontent.com/modpotato/craftcn/develop/registry";
 
-pub struct RegistryClient;
+/// Point craftcn at a local registry checkout, e.g. `CRAFTCN_REGISTRY=$PWD/registry`.
+const ENV_LOCAL: &str = "CRAFTCN_REGISTRY";
+/// Override the remote registry base URL (for forks or staging registries).
+const ENV_REMOTE: &str = "CRAFTCN_REGISTRY_URL";
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RegistrySource {
+    /// A registry directory on disk containing `index.json`, `themes.json` and `components/`.
+    Directory(PathBuf),
+    /// A remote registry. Files are cached under `cache` after the first successful fetch.
+    Remote {
+        base_url: String,
+        cache: Option<PathBuf>,
+    },
+}
+
+pub struct RegistryClient {
+    source: RegistrySource,
+    http: reqwest::Client,
+}
 
 impl RegistryClient {
-    fn get_registry_dir() -> Result<PathBuf> {
-        let mut path = std::env::current_exe()?;
-        path.pop();
-        path.push("registry");
-        Ok(path)
+    /// Resolves the source from the environment: `CRAFTCN_REGISTRY` first, otherwise the
+    /// remote registry with the default on-disk cache.
+    pub fn from_env() -> Self {
+        let source = match std::env::var_os(ENV_LOCAL) {
+            Some(dir) => RegistrySource::Directory(PathBuf::from(dir)),
+            None => RegistrySource::Remote {
+                base_url: std::env::var(ENV_REMOTE).unwrap_or_else(|_| DEFAULT_REMOTE.to_string()),
+                cache: default_cache_dir(),
+            },
+        };
+        Self::with_source(source)
     }
 
-    fn get_local_registry_path() -> Result<PathBuf> {
-        let mut path = Self::get_registry_dir()?;
-        path.push("index.json");
-        Ok(path)
+    pub fn with_source(source: RegistrySource) -> Self {
+        let http = reqwest::Client::builder()
+            .user_agent(format!("craftcn/{}", env!("CARGO_PKG_VERSION")))
+            .build()
+            .unwrap_or_else(|_| reqwest::Client::new());
+        Self { source, http }
     }
 
-    fn get_component_path(component_name: &str, file_path: &str) -> Result<PathBuf> {
-        let mut path = Self::get_registry_dir()?;
-        path.push("components");
-        path.push(component_name);
-        path.push(file_path);
-        Ok(path)
+    pub fn source(&self) -> &RegistrySource {
+        &self.source
     }
 
-    async fn fetch_registry_from_github() -> Result<String> {
-        let client = Client::new();
-        let url = "https://raw.githubusercontent.com/modpotato/craftcn/develop/registry/index.json";
+    pub async fn index(&self) -> Result<Registry> {
+        let text = self.read_root_file("index.json").await?;
+        serde_json::from_str(&text).context("registry index.json is not valid")
+    }
 
-        let response = client
+    pub async fn themes(&self) -> Result<Vec<Theme>> {
+        let text = self.read_root_file("themes.json").await?;
+        serde_json::from_str(&text).context("registry themes.json is not valid")
+    }
+
+    /// Reads a component source file, e.g. `ui/core/BaseMenu.java`.
+    pub async fn component_file(&self, component: &str, file: &str) -> Result<String> {
+        validate_component_name(component)?;
+        let relative = safe_relative_path(file)?;
+        let path = format!(
+            "components/{component}/{}",
+            relative.to_string_lossy().replace('\\', "/")
+        );
+        self.read_root_file(&path).await
+    }
+
+    /// Re-downloads `index.json` and `themes.json` and drops cached component files.
+    /// A local directory source has nothing to refresh.
+    pub async fn refresh(&self) -> Result<()> {
+        let RegistrySource::Remote { base_url, cache } = &self.source else {
+            return Ok(());
+        };
+
+        for name in ["index.json", "themes.json"] {
+            let text = self
+                .fetch(&format!("{}/{name}", base_url.trim_end_matches('/')))
+                .await?;
+            if let Some(cache) = cache {
+                write_cache(cache, name, &text)?;
+            }
+        }
+
+        if let Some(cache) = cache {
+            let components = cache.join("components");
+            if components.exists() {
+                fs::remove_dir_all(&components)
+                    .with_context(|| format!("failed to clear {}", components.display()))?;
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn read_root_file(&self, relative: &str) -> Result<String> {
+        match &self.source {
+            RegistrySource::Directory(dir) => {
+                let path = dir.join(relative);
+                fs::read_to_string(&path)
+                    .with_context(|| format!("failed to read {}", path.display()))
+            }
+            RegistrySource::Remote { base_url, cache } => {
+                if let Some(cache) = cache {
+                    let cached = cache.join(relative);
+                    if cached.exists() {
+                        return fs::read_to_string(&cached)
+                            .with_context(|| format!("failed to read {}", cached.display()));
+                    }
+                }
+
+                let url = format!("{}/{relative}", base_url.trim_end_matches('/'));
+                let text = self.fetch(&url).await?;
+
+                if let Some(cache) = cache {
+                    write_cache(cache, relative, &text)?;
+                }
+
+                Ok(text)
+            }
+        }
+    }
+
+    async fn fetch(&self, url: &str) -> Result<String> {
+        let response = self
+            .http
             .get(url)
-            .header("User-Agent", "CraftCN CLI")
             .send()
             .await
-            .context("Failed to fetch registry from GitHub")?;
+            .with_context(|| format!("failed to reach {url}"))?;
 
         if !response.status().is_success() {
-            anyhow::bail!(
-                "Failed to fetch registry from GitHub (HTTP {}). Please check your internet connection or try again later.",
+            bail!(
+                "registry request to {url} failed (HTTP {}). Check your connection, or set {ENV_LOCAL} to a local registry checkout.",
                 response.status()
             );
         }
 
-        let content = response.text().await?;
-        Ok(content)
-    }
-
-    async fn fetch_themes_from_github() -> Result<String> {
-        let client = Client::new();
-        let url = "https://raw.githubusercontent.com/modpotato/craftcn/develop/registry/themes.json";
-
-        let response = client
-            .get(url)
-            .header("User-Agent", "CraftCN CLI")
-            .send()
+        response
+            .text()
             .await
-            .context("Failed to fetch themes from GitHub")?;
+            .with_context(|| format!("failed to read response from {url}"))
+    }
+}
 
-        if !response.status().is_success() {
-            anyhow::bail!("GitHub returned status: {}", response.status());
+fn default_cache_dir() -> Option<PathBuf> {
+    directories::ProjectDirs::from("dev", "modpotato", "craftcn")
+        .map(|dirs| dirs.cache_dir().join("registry"))
+}
+
+fn write_cache(cache: &Path, relative: &str, text: &str) -> Result<()> {
+    let path = cache.join(relative);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("failed to create {}", parent.display()))?;
+    }
+    fs::write(&path, text).with_context(|| format!("failed to write {}", path.display()))
+}
+
+/// Component names are lowercase kebab-case, e.g. `paginated-menu`.
+pub fn validate_component_name(name: &str) -> Result<()> {
+    let valid = !name.is_empty()
+        && name.split('-').all(|part| {
+            !part.is_empty()
+                && part
+                    .chars()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
+        });
+
+    if !valid {
+        bail!("invalid component name '{name}'");
+    }
+    Ok(())
+}
+
+/// Registry file paths must stay inside the component directory.
+pub fn safe_relative_path(path: &str) -> Result<PathBuf> {
+    let candidate = Path::new(path);
+    let mut clean = PathBuf::new();
+
+    for component in candidate.components() {
+        match component {
+            Component::Normal(part) => clean.push(part),
+            _ => bail!("registry path '{path}' must be relative and must not contain '..'"),
         }
-
-        let content = response.text().await?;
-        Ok(content)
     }
 
-    pub async fn get_registry() -> Result<Registry> {
-        let cache = REGISTRY_CACHE.get_or_init(|| Mutex::new(None));
-
-        {
-            let guard = cache
-                .lock()
-                .map_err(|e| anyhow::anyhow!("Cache mutex poisoned: {}", e))?;
-            if let Some(registry) = guard.as_ref() {
-                return Ok(registry.clone());
-            }
-        }
-
-        let registry: Registry = if let Ok(local_path) = Self::get_local_registry_path() {
-            if local_path.exists() {
-                let content = fs::read_to_string(&local_path)?;
-                serde_json::from_str(&content)?
-            } else {
-                let content = Self::fetch_registry_from_github().await?;
-                serde_json::from_str(&content)?
-            }
-        } else {
-            let content = Self::fetch_registry_from_github().await?;
-            serde_json::from_str(&content)?
-        };
-
-        {
-            let mut guard = cache
-                .lock()
-                .map_err(|e| anyhow::anyhow!("Cache mutex poisoned: {}", e))?;
-            *guard = Some(registry.clone());
-        }
-
-        Ok(registry)
+    if clean.as_os_str().is_empty() {
+        bail!("registry path is empty");
     }
 
-    pub async fn get_available_themes() -> Result<Vec<Theme>> {
-        let cache = THEMES_CACHE.get_or_init(|| Mutex::new(None));
+    Ok(clean)
+}
 
-        {
-            let guard = cache
-                .lock()
-                .map_err(|e| anyhow::anyhow!("Cache mutex poisoned: {}", e))?;
-            if let Some(themes) = guard.as_ref() {
-                return Ok(themes.clone());
-            }
-        }
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-        let themes_content = if let Ok(local_path) = Self::get_registry_dir() {
-            let themes_path = local_path.join("themes.json");
-            if themes_path.exists() {
-                fs::read_to_string(&themes_path)?
-            } else {
-                Self::fetch_themes_from_github().await?
-            }
-        } else {
-            Self::fetch_themes_from_github().await?
-        };
-
-        let themes: Vec<Theme> = serde_json::from_str(&themes_content)?;
-
-        {
-            let mut guard = cache
-                .lock()
-                .map_err(|e| anyhow::anyhow!("Cache mutex poisoned: {}", e))?;
-            *guard = Some(themes.clone());
-        }
-
-        Ok(themes)
-    }
-
-    pub async fn get_file_content(component_name: &str, file_path: &str) -> Result<String> {
-        let local_path = Self::get_component_path(component_name, file_path)?;
-
-        if local_path.exists() {
-            return fs::read_to_string(&local_path)
-                .context(format!("Failed to read local file: {:?}", local_path));
-        }
-
-        let client = Client::new();
-        let url = format!(
-            "https://raw.githubusercontent.com/modpotato/craftcn/develop/registry/components/{}/{}",
-            component_name, file_path
+    #[test]
+    fn rejects_unsafe_registry_paths() {
+        assert!(safe_relative_path("../../etc/passwd").is_err());
+        assert!(safe_relative_path("/etc/passwd").is_err());
+        assert!(safe_relative_path("").is_err());
+        assert_eq!(
+            safe_relative_path("ui/core/BaseMenu.java").unwrap(),
+            PathBuf::from("ui").join("core").join("BaseMenu.java")
         );
-
-        let response = client
-            .get(&url)
-            .header("User-Agent", "CraftCN CLI")
-            .send()
-            .await
-            .context("Failed to fetch file from GitHub")?;
-
-        if !response.status().is_success() {
-            anyhow::bail!("GitHub returned status: {}", response.status());
-        }
-
-        let content = response.text().await?;
-        Ok(content)
     }
 
-    pub async fn update_cache() -> Result<()> {
-        let registry_content = Self::fetch_registry_from_github().await?;
-        let themes_content = Self::fetch_themes_from_github().await?;
+    #[test]
+    fn validates_component_names() {
+        assert!(validate_component_name("paginated-menu").is_ok());
+        assert!(validate_component_name("text-fx").is_ok());
+        assert!(validate_component_name("../evil").is_err());
+        assert!(validate_component_name("Upper").is_err());
+        assert!(validate_component_name("double--dash").is_err());
+    }
 
-        let registry_dir = Self::get_registry_dir()?;
-        fs::create_dir_all(&registry_dir)?;
+    #[tokio::test]
+    async fn reads_index_and_components_from_directory_source() {
+        let registry = Path::new(env!("CARGO_MANIFEST_DIR")).join("registry");
+        let client = RegistryClient::with_source(RegistrySource::Directory(registry));
 
-        let registry_path = registry_dir.join("index.json");
-        fs::write(&registry_path, registry_content)?;
+        let index = client.index().await.expect("index.json should parse");
+        assert!(index.get_component("base-menu").is_some());
 
-        let themes_path = registry_dir.join("themes.json");
-        fs::write(&themes_path, themes_content)?;
+        let themes = client.themes().await.expect("themes.json should parse");
+        assert!(themes.iter().any(|t| t.name == "default"));
 
-        if let Some(cache) = REGISTRY_CACHE.get() {
-            let mut guard = cache
-                .lock()
-                .map_err(|e| anyhow::anyhow!("Cache mutex poisoned: {}", e))?;
-            *guard = None;
-        }
-
-        if let Some(cache) = THEMES_CACHE.get() {
-            let mut guard = cache
-                .lock()
-                .map_err(|e| anyhow::anyhow!("Cache mutex poisoned: {}", e))?;
-            *guard = None;
-        }
-
-        Ok(())
+        let source = client
+            .component_file("base-menu", "ui/core/BaseMenu.java")
+            .await
+            .expect("base-menu source should exist");
+        assert!(source.contains("class BaseMenu"));
     }
 }

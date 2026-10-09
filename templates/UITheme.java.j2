@@ -53,24 +53,25 @@ public class UITheme {
     // SOUNDS
     // ========================================
     
-    {% for sound_name, sound_value in theme.sounds.items() %}
-    public static final Sound {{ sound_name|to_uppercase }} = Sound.valueOf("{{ sound_value }}");
+    {% for sound_name in theme.sounds %}
+    public static final Sound {{ sound_name | upper }} = Sound.{{ theme.sounds[sound_name] }};
     {% endfor %}
     
     // ========================================
     // UTILITY METHODS
     // ========================================
     
+    /**
+     * Accepts "#RRGGBB" or a named colour. Unknown values fall back to white, so a typo in the theme
+     * never stops the plugin from loading.
+     */
     private static TextColor parseColor(String colorString) {
-        try {
-            return NamedTextColor.NAMES.valueOrThrow(colorString.toLowerCase());
-        } catch (IllegalArgumentException e) {
-            try {
-                return TextColor.fromHexString(colorString);
-            } catch (Exception ex) {
-                return NamedTextColor.WHITE;
-            }
+        if (colorString.startsWith("#")) {
+            TextColor hex = TextColor.fromHexString(colorString);
+            return hex != null ? hex : NamedTextColor.WHITE;
         }
+        TextColor named = NamedTextColor.NAMES.value(colorString.toLowerCase(java.util.Locale.ROOT));
+        return named != null ? named : NamedTextColor.WHITE;
     }
     
     /**

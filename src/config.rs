@@ -3,12 +3,22 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 
+use crate::minecraft::DEFAULT_TARGET;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CraftCNConfig {
     pub version: String,
     pub package: String,
     pub theme: String,
+    /// Minecraft version the project targets, e.g. `26.2`. Used for compatibility checks
+    /// and resource pack formats.
+    #[serde(default = "default_minecraft")]
+    pub minecraft: String,
     pub components: Vec<String>,
+}
+
+fn default_minecraft() -> String {
+    DEFAULT_TARGET.to_string()
 }
 
 impl CraftCNConfig {
@@ -31,17 +41,9 @@ impl CraftCNConfig {
         let config_path = project_root.join("craftcn.json");
         let content = serde_json::to_string_pretty(self)?;
 
-        fs::write(&config_path, content).context("Failed to write craftcn.json")?;
+        fs::write(&config_path, format!("{content}\n")).context("Failed to write craftcn.json")?;
 
         Ok(())
-    }
-
-    pub fn ui_package(&self) -> String {
-        format!("{}.ui", self.package)
-    }
-
-    pub fn ui_core_package(&self) -> String {
-        format!("{}.ui.core", self.package)
     }
 }
 
@@ -51,6 +53,7 @@ impl Default for CraftCNConfig {
             version: env!("CARGO_PKG_VERSION").to_string(),
             package: "com.example.plugin".to_string(),
             theme: "default".to_string(),
+            minecraft: default_minecraft(),
             components: Vec::new(),
         }
     }

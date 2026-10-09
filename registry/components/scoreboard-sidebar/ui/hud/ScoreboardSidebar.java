@@ -1,127 +1,125 @@
 package com.craftcn.ui.hud;
 
+import io.papermc.paper.scoreboard.numbers.NumberFormat;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
+import org.bukkit.scoreboard.Criteria;
 import org.bukkit.scoreboard.DisplaySlot;
 import org.bukkit.scoreboard.Objective;
-import org.bukkit.scoreboard.Score;
 import org.bukkit.scoreboard.Scoreboard;
 import org.bukkit.scoreboard.Team;
 
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * A per-player sidebar. Each line is rendered through a team prefix holding an Adventure component, so a single
+ * line can change without resending the whole board. Score numbers are hidden with a blank number format.
+ * <p>
+ * Each line is keyed by an invisible entry (a colour code), which limits the sidebar to {@link #MAX_LINES} lines.
+ */
 public class ScoreboardSidebar {
-    
+
+    public static final int MAX_LINES = 15;
+
+    private static final String ENTRY_CODES = "0123456789abcdef";
+    private static final String SECTION = "§";
+
+    private final Player player;
     private final Scoreboard scoreboard;
     private final Objective objective;
-    private final Player player;
-    private final List<Team> teams;
-    private final List<String> lines;
-    private String title;
-    
-    public ScoreboardSidebar(Player player, String title) {
+    private final List<Component> lines = new ArrayList<>();
+
+    public ScoreboardSidebar(Player player, Component title) {
         this.player = player;
-        this.title = title;
         this.scoreboard = Bukkit.getScoreboardManager().getNewScoreboard();
-        this.objective = scoreboard.registerNewObjective("sidebar", "dummy", 
-            Component.text(title));
+        this.objective = scoreboard.registerNewObjective("craftcn_sidebar", Criteria.DUMMY, title);
         this.objective.setDisplaySlot(DisplaySlot.SIDEBAR);
-        this.teams = new ArrayList<>();
-        this.lines = new ArrayList<>();
     }
-    
-    public void setTitle(String title) {
-        this.title = title;
-        objective.displayName(Component.text(title));
+
+    public ScoreboardSidebar(Player player, String title) {
+        this(player, Component.text(title));
     }
-    
-    public void addLine(String line) {
-        lines.add(line);
-        updateLines();
+
+    public void setTitle(Component title) {
+        objective.displayName(title);
     }
-    
-    public void setLine(int index, String line) {
-        if (index >= 0 && index < lines.size()) {
-            lines.set(index, line);
-            updateLines();
+
+    /** Replaces every line. Extra lines beyond {@link #MAX_LINES} are ignored. */
+    public void setLines(List<Component> newLines) {
+        lines.clear();
+        lines.addAll(newLines.subList(0, Math.min(newLines.size(), MAX_LINES)));
+        render();
+    }
+
+    public void addLine(Component line) {
+        if (lines.size() < MAX_LINES) {
+            lines.add(line);
+            render();
         }
     }
-    
+
+    /** Changes one line. Ignored when {@code index} is out of range. */
+    public void setLine(int index, Component line) {
+        if (index >= 0 && index < lines.size()) {
+            lines.set(index, line);
+            Team team = team(index);
+            team.prefix(line);
+        }
+    }
+
     public void removeLine(int index) {
         if (index >= 0 && index < lines.size()) {
             lines.remove(index);
-            updateLines();
+            render();
         }
     }
-    
-    public void clearLines() {
-        lines.clear();
-        updateLines();
-    }
-    
-    private void updateLines() {
-        // Clear existing teams
-        for (Team team : teams) {
-            team.unregister();
-        }
-        teams.clear();
-        
-        // Reset scoreboard entries
-        for (String entry : scoreboard.getEntries()) {
-            scoreboard.resetScores(entry);
-        }
-        
-        // Color codes for unique entries (max 16 lines)
-        String[] colorCodes = {
-            "§0", "§1", "§2", "§3", "§4", "§5", "§6", "§7",
-            "§8", "§9", "§a", "§b", "§c", "§d", "§e", "§f"
-        };
-        
-        for (int i = 0; i < lines.size() && i < 16; i++) {
-            String line = lines.get(lines.size() - 1 - i);
-            String teamName = "line_" + i;
-            
-            Team team = scoreboard.registerNewTeam(teamName);
-            teams.add(team);
-            
-            // Use color code as unique entry
-            String entry = colorCodes[i];
-            team.addEntry(entry);
-            team.prefix(Component.text(line));
-            
-            objective.getScore(entry).setScore(i);
-        }
-    }
-    
+
+    /** Shows the sidebar to the player. Call from the player's thread. */
     public void show() {
         player.setScoreboard(scoreboard);
     }
-    
+
+    /** Restores the server's main scoreboard for the player. */
     public void hide() {
-        if (player.getScoreboard() == scoreboard) {
-            player.setScoreboard(Bukkit.getScoreboardManager().getMainScoreboard());
+        player.setScoreboard(Bukkit.getScoreboardManager().getMainScoreboard());
+    }
+
+    private void render() {
+        for (int index = 0; index < MAX_LINES; index++) {
+            String entry = entry(index);
+
+            if (index < lines.size()) {
+                Team team = team(index);
+                team.prefix(lines.get(index));
+                if (!team.hasEntry(entry)) {
+                    team.addEntry(entry);
+                }
+
+                // Higher scores sit higher on the board, so the first line gets the largest score.
+                objective.getScore(entry).setScore(MAX_LINES - index);
+                objective.getScore(entry).numberFormat(NumberFormat.blank());
+            } else {
+                Team team = scoreboard.getTeam(teamName(index));
+                if (team != null) {
+                    team.unregister();
+                }
+                scoreboard.resetScores(entry);
+            }
         }
     }
-    
-    public void destroy() {
-        hide();
-        for (Team team : teams) {
-            team.unregister();
-        }
-        objective.unregister();
+
+    private Team team(int index) {
+        Team team = scoreboard.getTeam(teamName(index));
+        return team != null ? team : scoreboard.registerNewTeam(teamName(index));
     }
-    
-    public boolean isVisible() {
-        return player.getScoreboard() == scoreboard;
+
+    private static String teamName(int index) {
+        return "craftcn_line_" + index;
     }
-    
-    public int getLineCount() {
-        return lines.size();
-    }
-    
-    public List<String> getLines() {
-        return new ArrayList<>(lines);
+
+    private static String entry(int index) {
+        return SECTION + ENTRY_CODES.charAt(index);
     }
 }

@@ -1,152 +1,115 @@
 package com.craftcn.ui.menus;
 
+import com.craftcn.ui.UITheme;
 import com.craftcn.ui.core.BaseMenu;
-import com.craftcn.ui.core.UITheme;
+import com.craftcn.ui.core.Button;
 import com.craftcn.ui.util.ItemBuilder;
-import org.bukkit.entity.Player;
-import org.bukkit.event.inventory.InventoryClickEvent;
-import org.bukkit.inventory.ItemStack;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Material;
+import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
 
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
+/**
+ * Lets the player pick one or several items from a list and confirm the choice.
+ * <p>
+ * Items fill the menu from the top left. The bottom row is reserved for the confirm button, so a menu of
+ * {@code size} slots holds {@code size - 9} choices.
+ *
+ * @param <T> the type of item to choose from
+ */
 public class SelectionMenu<T> extends BaseMenu {
-    
-    private List<T> items;
-    private Function<T, ItemStack> itemRenderer;
-    private Set<T> selectedItems;
-    private Set<Integer> selectedSlots;
-    private boolean multiSelect;
-    private BiConsumer<Set<T>, Player> onSelectionComplete;
-    
+
+    public static final String CONFIRM_LABEL = "Confirm selection";
+    public static final String SELECTED_LABEL = "Selected";
+
+    private final List<T> items = new ArrayList<>();
+    private final Set<T> selected = new LinkedHashSet<>();
+    private final int confirmSlot;
+    private Function<T, ItemStack> itemRenderer = item -> ItemBuilder.from(Material.PAPER).name(String.valueOf(item)).build();
+    private boolean multiSelect = true;
+    private BiConsumer<Set<T>, Player> onSelectionComplete = (chosen, player) -> { };
+
     public SelectionMenu(Plugin plugin, Player player, String title, int size) {
         super(plugin, player, title, size);
-        this.items = new ArrayList<>();
-        this.selectedItems = new HashSet<>();
-        this.selectedSlots = new HashSet<>();
-        this.multiSelect = true;
+        this.confirmSlot = size - 5;
     }
-    
-    public void setItems(List<T> items) {
-        this.items = items;
+
+    public void setItems(List<T> source) {
+        items.clear();
+        items.addAll(source);
+        refresh();
     }
-    
+
     public void setItemRenderer(Function<T, ItemStack> renderer) {
         this.itemRenderer = renderer;
     }
-    
+
     public void setMultiSelect(boolean multiSelect) {
         this.multiSelect = multiSelect;
     }
-    
+
     public void setOnSelectionComplete(BiConsumer<Set<T>, Player> callback) {
         this.onSelectionComplete = callback;
     }
-    
+
+    /** A copy of the current selection, in the order it was made. */
+    public Set<T> getSelectedItems() {
+        return new LinkedHashSet<>(selected);
+    }
+
+    public void clearSelection() {
+        selected.clear();
+        refresh();
+    }
+
     @Override
     protected void build() {
-        inventory.clear();
-        selectedItems.clear();
-        selectedSlots.clear();
-        
-        for (int i = 0; i < items.size() && i < inventory.getSize(); i++) {
-            T item = items.get(i);
-            ItemStack rendered = renderItem(item, i, false);
-            inventory.setItem(i, rendered);
+        fillRange(0, size, filler());
+
+        int capacity = size - 9;
+        for (int index = 0; index < Math.min(items.size(), capacity); index++) {
+            T item = items.get(index);
+            setButton(index, Button.of(render(item, selected.contains(item)), click -> toggle(item)));
         }
-        
-        addConfirmButton();
-        fillEmptySlots();
-    }
-    
-    private ItemStack renderItem(T item, int slot, boolean selected) {
-        ItemStack base = itemRenderer != null ? itemRenderer.apply(item) : 
-            new ItemBuilder(Material.PAPER).name(item.toString()).build();
-        
-        if (selected) {
-            return new ItemBuilder(base)
-                .glow()
-                .lore("Selected")
+
+        ItemStack confirm = ItemBuilder.from(Material.LIME_WOOL)
+                .name(CONFIRM_LABEL)
+                .lore(selected.size() + " selected")
                 .build();
-        }
-        
-        return base;
+        setButton(confirmSlot, Button.of(confirm, click -> confirm()).withSound(UITheme.SUCCESS));
     }
-    
-    private void addConfirmButton() {
-        ItemStack confirmButton = new ItemBuilder(Material.LIME_WOOL)
-            .name("Confirm Selection")
-            .lore("Click to confirm")
-            .build();
-        
-        inventory.setItem(inventory.getSize() - 5, confirmButton);
+
+    private ItemStack render(T item, boolean isSelected) {
+        ItemBuilder builder = ItemBuilder.from(itemRenderer.apply(item));
+        if (isSelected) {
+            builder.glow().addLore(Component.text(SELECTED_LABEL, NamedTextColor.GREEN));
+        }
+        return builder.build();
     }
-    
-    @Override
-    protected void onClick(InventoryClickEvent event) {
-        int slot = event.getSlot();
-        
-        if (slot == inventory.getSize() - 5) {
-            confirmSelection();
-            return;
-        }
-        
-        if (slot < 0 || slot >= items.size()) {
-            return;
-        }
-        
-        T item = items.get(slot);
-        
-        if (selectedSlots.contains(slot)) {
-            selectedSlots.remove(slot);
-            selectedItems.remove(item);
-            
-            ItemStack rendered = renderItem(item, slot, false);
-            inventory.setItem(slot, rendered);
-            
-            player.playSound(player.getLocation(), UITheme.CLICK, 1.0f, 1.0f);
+
+    private void toggle(T item) {
+        if (selected.contains(item)) {
+            selected.remove(item);
         } else {
             if (!multiSelect) {
-                for (int s : new ArrayList<>(selectedSlots)) {
-                    T prevItem = items.get(s);
-                    selectedSlots.remove(s);
-                    selectedItems.remove(prevItem);
-                    inventory.setItem(s, renderItem(prevItem, s, false));
-                }
+                selected.clear();
             }
-            
-            selectedSlots.add(slot);
-            selectedItems.add(item);
-            
-            ItemStack rendered = renderItem(item, slot, true);
-            inventory.setItem(slot, rendered);
-            
-            player.playSound(player.getLocation(), UITheme.SUCCESS, 1.0f, 1.0f);
+            selected.add(item);
         }
+        refresh();
     }
-    
-    private void confirmSelection() {
-        if (onSelectionComplete != null) {
-            onSelectionComplete.accept(selectedItems, player);
-        }
-        
-        player.playSound(player.getLocation(), UITheme.SUCCESS, 1.0f, 1.0f);
+
+    private void confirm() {
+        onSelectionComplete.accept(getSelectedItems(), player);
         close();
-    }
-    
-    public Set<T> getSelectedItems() {
-        return new HashSet<>(selectedItems);
-    }
-    
-    public void clearSelection() {
-        selectedItems.clear();
-        selectedSlots.clear();
-        build();
     }
 }
